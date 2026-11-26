@@ -429,4 +429,68 @@ end`,
            `For hills, use the curve's own up direction instead of world up, or the road tilts strangely on slopes.`]
 });
 }
+
+{
+const {UP} = Lab;
+const smooth = u=>u*u*(3-2*u);
+function trackPoints(N){ const pts = [], k = 2.2, a = 1, b = 2.1, w = 2.2, lead = Math.round(N*0.15), loop = N - 2*lead;
+  const at = th=>V(k*(a*th - b*Math.sin(th)), 1 + k*b*(1+Math.cos(th)), w*th/Math.PI);
+  const s0 = at(-Math.PI), s1 = at(Math.PI);
+  for (let i=0;i<lead;i++) pts.push(V(s0.x - 9 + 9*i/lead, s0.y, s0.z));
+  for (let i=0;i<=loop;i++) pts.push(at(-Math.PI + 2*Math.PI*i/loop));
+  for (let i=1;i<=lead;i++) pts.push(V(s1.x + 9*i/lead, s1.y, s1.z));
+  return pts; }
+
+demo({
+  id:'bz-frame', adv:true, title:'Tracks with loops: twist-free frames', short:'rotation-minimising frames', sig:'carry "up" along the curve by double reflection, instead of tangent × worldUp', time:true,
+  view:{theta:0.55, phi:1.15, r:26, ty:4},
+  params:[S('mode','Up vector',[['rmf','Rotation-minimising (carried along)'],['naive','tangent × world up']],'rmf'), R('speed','Cart speed',0.02,0.2,0.01,0.07)],
+  setup(K){
+    const P = trackPoints(240), N = P.length - 1, Tn = [];
+    for (let i=0;i<=N;i++){ const a = P[Math.max(0,i-1)], b = P[Math.min(N,i+1)]; Tn.push(b.clone().sub(a).normalize()); }
+    const rmf = [], naive = [];
+    let r = Tn[0].clone().cross(UP).cross(Tn[0]).normalize().negate(); if (r.y < 0) r.negate(); rmf.push(r.clone());
+    for (let i=0;i<N;i++){
+      const v1 = P[i+1].clone().sub(P[i]), c1 = v1.dot(v1); if (c1 < 1e-12){ rmf.push(rmf[i].clone()); continue; }
+      const rL = rmf[i].clone().sub(v1.clone().multiplyScalar(2/c1*v1.dot(rmf[i]))), tL = Tn[i].clone().sub(v1.clone().multiplyScalar(2/c1*v1.dot(Tn[i])));
+      const v2 = Tn[i+1].clone().sub(tL), c2 = v2.dot(v2); rmf.push(c2 < 1e-12 ? rL : rL.sub(v2.multiplyScalar(2/c2*v2.dot(rL))).normalize());
+    }
+    for (let i=0;i<=N;i++){ const right = Tn[i].clone().cross(UP); const u = right.length() < 1e-3 ? V(0,1,0) : right.normalize().cross(Tn[i]).normalize(); naive.push(u); }
+    K.line('--ink',{max:N+1}).set(P);
+    const ups = Array.from({length:40}, ()=>K.arrow('--y',{thick:0.03})), cart = K.part(V(1.4,0.6,2));
+    const lab = K.label('','--ink','big');
+    let jump = {rmf:0, naive:0}; for (let i=0;i<N;i++){ jump.rmf = Math.max(jump.rmf, rmf[i].angleTo(rmf[i+1])); jump.naive = Math.max(jump.naive, naive[i].angleTo(naive[i+1])); }
+    return {update(p,t){
+      const ups_ = p.mode==='rmf' ? rmf : naive;
+      ups.forEach((a,k)=>{ const i = Math.round(k/39*N); a.set(P[i], ups_[i].clone().multiplyScalar(1.1)); });
+      const s = (t*p.speed) % 1, i = Math.round(s*N), up = ups_[i];
+      cart.setCF(CF.lookAt(P[i].clone().addScaledVector(up,0.45), P[i].clone().addScaledVector(up,0.45).add(Tn[i]), up));
+      lab.at(P[i].clone().addScaledVector(up,1.6)).text(p.mode==='rmf' ? 'smooth' : (ups_[i].y < 0.2 && P[i].y > 2 ? 'flipping!' : ''));
+      let top = 0; P.forEach((q,j)=>{ if (q.y > P[top].y) top = j; }); return {jump:jump[p.mode], topUp:ups_[top].y};
+    }};
+  },
+  readout:(p,o)=>[['up at the top of the loop', o.topUp < 0 ? 'points down into the loop (correct)' : 'points up: cart rides on the outside!', o.topUp < 0 ? 'ok' : 'bad'],['biggest twist between samples', f(o.jump*180/Math.PI,1)+'°']],
+  code:(p,o)=>`-- carry an "up" vector along sampled points P[i] with tangents T[i]
+local up = { (T[1]:Cross(Vector3.yAxis)):Cross(T[1]).Unit * -1 }
+
+for i = 1, #P - 1 do
+    local v1 = P[i + 1] - P[i]
+    local c1 = v1:Dot(v1)
+    local rL = up[i] - v1 * (2 / c1 * v1:Dot(up[i]))      -- reflect across the step
+    local tL = T[i] - v1 * (2 / c1 * v1:Dot(T[i]))
+    local v2 = T[i + 1] - tL
+    local c2 = v2:Dot(v2)
+    up[i + 1] = (rL - v2 * (2 / c2 * v2:Dot(rL))).Unit     -- reflect again to match the new tangent
+end
+
+cart.CFrame = CFrame.lookAt(P[i], P[i] + T[i], up[i])`,
+  body:`<p>On flat tracks, "up" is easy: cross the tangent with world up. But at the top of a loop the track points straight up or down, that cross product collapses, and the cart <b>flips</b> or spins. Switch to the naive mode and watch the green up-arrows at the loop.</p>
+<p>A <b>rotation-minimising frame</b> doesn't use world up at all. It starts with a sensible up at the beginning and carries it along the curve, turning it only as much as the curve forces it to. The double-reflection method in the code does this with two mirror steps per sample, and it gets through loops and corkscrews without a twist.</p>`,
+  uses:[`<b>Roller coasters</b> with loops and corkscrews.`,
+        `<b>Tubes, ropes and cables</b> built from parts along a 3D curve.`,
+        `<b>Flying cameras</b> along 3D paths without the horizon spinning.`],
+  gotchas:[`Build the frames once from the sampled curve, not every frame.`,
+           `On a closed loop the last up may not match the first. Spread the leftover twist evenly along the track.`]
+});
+}
 })();

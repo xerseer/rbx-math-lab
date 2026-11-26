@@ -515,4 +515,56 @@ end)`,
            `Add more behaviours by summing steering forces: seek the target, flee from danger, separate from neighbours.`]
 });
 }
+
+{
+const {THREE, V, UP, D2R, f, vs, CF, R, T, clamp} = Lab;
+
+demo({
+  id:'vec-swing', adv:true, title:'Rotation between two vectors', short:'axis = a × b, angle = acos(a · b)', sig:'CFrame.fromAxisAngle(a:Cross(b).Unit, math.acos(a:Dot(b)))', time:true,
+  view:{theta:0.7, phi:0.95, r:15, ty:2},
+  params:[R('yaw','Surface normal: turn',-180,180,5,40,'°'), R('tilt','Surface normal: tilt',0,180,5,70,'°'), R('t','Amount',0,1,0.01,1), T('anim','Animate',true)],
+  setup(K){
+    const O = V(0,2,0), part = K.part(V(1.6,0.6,2.4)); K.axes(part, 1.8, {names:false, thick:0.03});
+    const aA = K.arrow('--y',{thick:0.05}), bA = K.arrow('--vb',{thick:0.05}), axA = K.arrow('--accent',{thick:0.05}), arc = K.line('--accent',{dashed:true, max:61});
+    const la = K.label('a = UpVector','--y'), lb = K.label('b = surface normal','--vb'), lx = K.label('axis = a × b','--accent','big');
+    const q = new THREE.Quaternion();
+    return {update(p,t){
+      const a = V(0,1,0), y = p.yaw*D2R, tl = p.tilt*D2R, b = V(-Math.sin(y)*Math.sin(tl), Math.cos(tl), -Math.cos(y)*Math.sin(tl));
+      let axis = a.clone().cross(b); const ang = Math.acos(clamp(a.dot(b),-1,1));
+      if (axis.length() < 1e-6) axis = ang > 1 ? a.clone().cross(V(1,0,0)) : V(1,0,0); axis.normalize();
+      const amt = p.anim ? 0.5-0.5*Math.cos(t*1.1) : p.t;
+      q.setFromAxisAngle(axis, ang*amt); part.position.copy(O); part.quaternion.copy(q);
+      aA.set(O, a.clone().multiplyScalar(2.8)); bA.set(O, b.clone().multiplyScalar(2.8)); axA.set(O, axis.clone().multiplyScalar(2.2));
+      const pts = []; for (let i=0;i<=60;i++) pts.push(O.clone().add(a.clone().applyQuaternion(new THREE.Quaternion().setFromAxisAngle(axis, ang*i/60)).multiplyScalar(2.8))); arc.set(pts);
+      la.at(O.clone().add(a.clone().multiplyScalar(3.2))); lb.at(O.clone().add(b.clone().multiplyScalar(3.2))); lx.at(O.clone().add(axis.clone().multiplyScalar(2.6)));
+      return {axis, ang, amt};
+    }};
+  },
+  readout:(p,o)=>[['axis', vs(o.axis)],['angle', f(o.ang/D2R,1)+'°','acc'],['applied', f(o.amt*100,0)+'%']],
+  code:(p,o)=>`local function rotationBetween(a, b)       -- the smallest turn that takes a onto b
+    local axis = a:Cross(b)
+    local angle = math.acos(math.clamp(a:Dot(b), -1, 1))
+    if axis.Magnitude < 1e-6 then             -- parallel: already aligned, or exactly opposite
+        if a:Dot(b) > 0 then return CFrame.identity end
+        axis = a:Cross(Vector3.xAxis)
+        if axis.Magnitude < 1e-6 then axis = a:Cross(Vector3.zAxis) end
+    end
+    return CFrame.fromAxisAngle(axis.Unit, angle)
+end
+
+-- stand a part up on a surface, keeping its current heading as much as possible
+local turn = rotationBetween(part.CFrame.UpVector, result.Normal)   -- ${f(o.ang/D2R,1)}°
+part.CFrame = CFrame.new(part.Position) * turn * part.CFrame.Rotation
+
+-- smooth: turn only part of the way each frame
+local partial = CFrame.fromAxisAngle(axis.Unit, angle * 0.1)`,
+  body:`<p>Often you know the direction something points now (<b>a</b>) and where it should point (<b>b</b>), and need the rotation in between. The cross product gives the <b>axis</b> to spin around (at 90° to both), and the dot product gives the <b>angle</b>. Together, <code>CFrame.fromAxisAngle</code> builds the shortest turn.</p>
+<p>The dashed arc is the path the UpVector takes. Because it's the shortest turn, the part keeps its heading as much as it can instead of spinning. Scale the angle down to turn only part of the way each frame for a smooth swing.</p>`,
+  uses:[`<b>Aligning to surfaces</b>: wall-walking, magnet boots, gravity that changes direction.`,
+        `<b>Smoothly turning</b> any direction toward another, not just around Y.`,
+        `<b>Ragdolls and physics props</b> that need to settle upright.`],
+  gotchas:[`When a and b point exactly opposite ways, the cross product is zero and any axis at 90° works. Handle it, or the rotation is NaN.`,
+           `Clamp the dot product to −1…1 before <code>math.acos</code>. Rounding can push it slightly outside and return NaN.`]
+});
+}
 })();

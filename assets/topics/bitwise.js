@@ -387,4 +387,52 @@ print(toSigned(bit32.band(n, 0xFFFFFFFF)))   --> ${o.back}`,
            `The <code>buffer</code> library has signed reads and writes (<code>buffer.readi16</code>, <code>buffer.writei32</code>) that handle this for you.`]
 });
 }
+
+{
+const part1by1 = n=>{ n &= 0xFF; n = (n | (n << 4)) & 0x0F0F; n = (n | (n << 2)) & 0x3333; n = (n | (n << 1)) & 0x5555; return n; };
+const morton = (x,z)=>part1by1(x) | (part1by1(z) << 1);
+
+demo({
+  id:'bw-morton', adv:true, title:'Morton codes: Z-order keys', short:'interleave x and z bits', sig:'key = interleave(x) | interleave(z) << 1',
+  view:{theta:0, phi:0.5, r:22, ty:0}, env:'grid',
+  params:[R('x','Cell X',0,7,1,5), R('z','Cell Z',0,7,1,3), T('curve','Show the Z-order path',true)],
+  setup(K){
+    const N = 8, CS = 2, cells = [], order = [];
+    for (let z=0;z<N;z++) for (let x=0;x<N;x++){ const m = K.add(new THREE.Mesh(G.box, new THREE.MeshLambertMaterial({color:0xffffff}))); m.scale.set(1.8,0.2,1.8); m.position.set((x-3.5)*CS,0.1,(z-3.5)*CS);
+      const code = morton(x,z); m.material.color.copy(C('--va')).lerp(C('--vb'), code/63); cells.push({m, x, z, code}); order[code] = V((x-3.5)*CS,0.35,(z-3.5)*CS); }
+    const path = K.line('--ink',{max:64}); path.set(order);
+    const labs = cells.map(c=>K.label(String(c.code),'--ink','tiny').at(c.m.position.clone().add(V(0,0.4,0))));
+    const sel = K.ring(1.2,'--accent',{y:0.3});
+    for (let i=0;i<N;i++){ K.label('x'+i,'--muted').at(V((i-3.5)*CS,0.2,-8.6)); K.label('z'+i,'--muted').at(V(-8.6,0.2,(i-3.5)*CS)); }
+    return {update(p){ path.visible = p.curve; const code = morton(p.x,p.z); sel.position.set((p.x-3.5)*CS,0,(p.z-3.5)*CS); return {code}; }};
+  },
+  readout:(p,o)=>[['x bits', p.x.toString(2).padStart(3,'0')],['z bits', p.z.toString(2).padStart(3,'0')],['interleaved (z x z x z x)', o.code.toString(2).padStart(6,'0'),'acc'],['key', String(o.code)]],
+  code:(p,o)=>`-- spread the bits of a 16-bit number apart: abcd → 0a0b0c0d
+local function part1by1(n)
+    n = bit32.band(n, 0xFFFF)
+    n = bit32.band(bit32.bor(n, bit32.lshift(n, 8)), 0x00FF00FF)
+    n = bit32.band(bit32.bor(n, bit32.lshift(n, 4)), 0x0F0F0F0F)
+    n = bit32.band(bit32.bor(n, bit32.lshift(n, 2)), 0x33333333)
+    n = bit32.band(bit32.bor(n, bit32.lshift(n, 1)), 0x55555555)
+    return n
+end
+
+local function mortonKey(x, z)
+    return bit32.bor(part1by1(x), bit32.lshift(part1by1(z), 1))
+end
+
+print(mortonKey(${p.x}, ${p.z}))   --> ${o.code}
+
+-- nearby cells get nearby keys, so sorting by key keeps neighbours together
+local chunks = {}
+chunks[mortonKey(cx, cz)] = chunkData`,
+  body:`<p>A <b>Morton code</b> (Z-order key) turns a 2D grid position into one number by <b>interleaving</b> the bits: one bit of x, one bit of z, one of x, one of z… The ring marks the chosen cell; the readout shows its x bits and z bits woven together.</p>
+<p>Follow the path through the keys 0, 1, 2, 3… It zig-zags in little Z shapes, then bigger Zs made of those, and so on. Cells that are close on the map mostly get close keys, which makes Morton keys good for storing chunks, sorting objects by area and building quadtrees.</p>`,
+  uses:[`<b>Chunk and tile keys</b> for big voxel or tile worlds.`,
+        `<b>Spatial sorting</b>: process nearby objects together for fewer cache misses.`,
+        `<b>Quadtrees</b>: the top bits of a Morton key say which quadrant a cell is in.`],
+  gotchas:[`Coordinates must be whole numbers from 0 up. Add an offset to handle negative positions.`,
+           `With <code>bit32</code>, x and z can be up to 16 bits each (0 to 65,535) before the key runs out of room.`]
+});
+}
 })();

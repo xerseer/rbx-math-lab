@@ -493,4 +493,48 @@ print(levelFromXp(${p.xp}))   --> ${Math.min(o.level,31)}`,
            `Round costs (<code>math.floor</code>) before showing them, and do the maths on the server.`]
 });
 }
+
+{
+demo({
+  id:'m-angdiff', adv:true, title:'Shortest way round: angle wrapping', short:'(to − from + 180) % 360 − 180', sig:'angleDiff = (to - from + 180) % 360 - 180   →   −180 … 180',
+  view:{theta:0.0, phi:0.35, r:17, ty:0},
+  params:[R('from','Current heading',-180,180,5,160,'°'), R('to','Target heading',-180,180,5,-150,'°'), R('t','Turn progress',0,1,0.01,0.5)],
+  setup(K){
+    K.ring(5,'--muted',{y:0.02}); [['0°',0],['90°',90],['180°',180],['−90°',-90]].forEach(([n,a])=>K.label(n,'--muted').at(lookOf(a*D2R).multiplyScalar(5.7).setY(0.2)));
+    const naive = K.sector('--bad',0.18), good = K.sector('--accent',0.28), aF = K.arrow('--va',{thick:0.06}), aT = K.arrow('--vb',{thick:0.06}), tur = K.part(V(1.4,0.8,2.2));
+    const lN = K.label('','--bad','big'), lG = K.label('','--accent','big'), lf = K.label('from','--va'), lt = K.label('to','--vb');
+    return {update(p){
+      const fr = p.from, to = p.to, nd = to - fr, wd = ((to - fr + 180) % 360 + 360) % 360 - 180;
+      naive.setSector(V(), (fr + nd/2)*D2R, Math.abs(nd)/2*D2R, 3.2, 0.03); good.setSector(V(), (fr + wd/2)*D2R, Math.abs(wd)/2*D2R, 4.2, 0.05);
+      aF.set(V(0,0.3,0), lookOf(fr*D2R).multiplyScalar(4.6)); aT.set(V(0,0.3,0), lookOf(to*D2R).multiplyScalar(4.6));
+      lf.at(lookOf(fr*D2R).multiplyScalar(5).setY(0.8)); lt.at(lookOf(to*D2R).multiplyScalar(5).setY(0.8));
+      lN.at(lookOf((fr+nd/2)*D2R).multiplyScalar(2.2).setY(0.4)).text(`naive ${f(nd,0)}°`); lG.at(lookOf((fr+wd/2)*D2R).multiplyScalar(4.8).setY(0.6)).text(`shortest ${f(wd,0)}°`);
+      const h = fr + wd*p.t; tur.setCF(CF.mul(CF.new(0,0.6,0), CF.angles(0,h*D2R,0)));
+      return {nd, wd, h};
+    }};
+  },
+  readout:(p,o)=>[['to − from', f(o.nd,0)+'°','bad'],['wrapped difference', f(o.wd,0)+'°','acc'],['heading at progress', f(((o.h+540)%360)-180,0)+'°']],
+  code:(p,o)=>`local function angleDiff(from, to)        -- degrees, always -180..180
+    return (to - from + 180) % 360 - 180
+end
+-- radians: (to - from + math.pi) % (2 * math.pi) - math.pi
+
+print(${p.to} - ${p.from})              --> ${f(o.nd,0)}   (the long way round)
+print(angleDiff(${p.from}, ${p.to}))    --> ${f(o.wd,0)}   (the short way)
+
+-- turn a turret toward a target at a fixed speed, the short way
+local diff = angleDiff(currentYaw, targetYaw)
+currentYaw += math.clamp(diff, -TURN_SPEED * dt, TURN_SPEED * dt)
+
+-- blending two headings
+local blended = from + angleDiff(from, to) * ${f(p.t)}`,
+  body:`<p>Headings wrap around: 170° and −170° are only 20° apart, but subtracting gives −340°. Turn by that and the turret spins almost all the way round the wrong way. This is one of the most common rotation bugs.</p>
+<p>The fix adds 180, wraps with <code>%</code> into 0…360, then subtracts 180 again, giving a difference between −180° and 180°. That's always the short way. Set the two headings on either side of 180° and compare the red and orange wedges.</p>`,
+  uses:[`<b>Turrets and NPCs</b> turning toward a target.`,
+        `<b>Blending or lerping headings</b>, for cameras and character facing.`,
+        `<b>Compass UI</b> that slides smoothly across north.`],
+  gotchas:[`This relies on Luau's <code>%</code> always returning a positive result for a positive divisor. In languages where it can be negative, add 360 before the final step.`,
+           `For full 3D orientations, use <code>CFrame:Lerp</code> instead. This trick is for single angles.`]
+});
+}
 })();

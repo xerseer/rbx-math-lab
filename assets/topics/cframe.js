@@ -498,4 +498,49 @@ local heading = math.deg(math.atan2(-look.X, -look.Z))   --> ${f(o.heading/D2R,0
            `Angles come back in radians, between −π and π.`]
 });
 }
+
+{
+const {V, D2R, f, CF, R, T} = Lab;
+
+demo({
+  id:'cf-slerp', adv:true, title:'Why lerping angles goes wrong', short:'slerp vs angle lerp', sig:'a:Lerp(b, t)  (quaternion slerp)   vs   Angles(rx·t, ry·t, rz·t)', time:true,
+  view:{theta:0.0, phi:1.0, r:20, ty:2.5},
+  params:[R('yaw','Target turn',-180,180,5,150,'°'), R('pitch','Target tilt',-85,85,5,70,'°'), R('roll','Target roll',-180,180,5,120,'°'), R('t','t',0,1,0.01,0.5), T('anim','Animate',true)],
+  setup(K){
+    const cL = V(-4.5,2.5,0), cR = V(4.5,2.5,0), A = CF.new(0,0,0);
+    const pL = K.part(V(1.6,0.8,2.6),'--accent'), pR = K.part(V(1.6,0.8,2.6),'--bad');
+    K.wsphere(2.6,'--muted',0.1).position.copy(cL); K.wsphere(2.6,'--muted',0.1).position.copy(cR);
+    const trL = K.line('--accent',{max:101}), trR = K.line('--bad',{max:101}), gL = K.part(V(1.6,0.8,2.6),'--part',{opacity:0.15}), gR = K.part(V(1.6,0.8,2.6),'--part',{opacity:0.15});
+    K.label('CFrame:Lerp (slerp)','--accent','big').at(cL.clone().add(V(0,3.6,0))); K.label('lerping the angles','--bad','big').at(cR.clone().add(V(0,3.6,0)));
+    return {update(p,t){
+      const rx = p.pitch*D2R, ry = p.yaw*D2R, rz = p.roll*D2R, B = CF.yxz(rx,ry,rz);
+      const s = p.anim ? 0.5-0.5*Math.cos(t*0.9) : p.t;
+      const slerpAt = u=>CF.lerp(A,B,u), eulerAt = u=>CF.yxz(rx*u, ry*u, rz*u);
+      pL.setCF(CF.mul(CF.at(cL), slerpAt(s))); pR.setCF(CF.mul(CF.at(cR), eulerAt(s)));
+      gL.setCF(CF.mul(CF.at(cL), B)); gR.setCF(CF.mul(CF.at(cR), B));
+      const a = [], b = []; let la = 0, lb = 0;
+      for (let i=0;i<=100;i++){ const u=i/100; a.push(cL.clone().add(CF.look(slerpAt(u)).multiplyScalar(2.6))); b.push(cR.clone().add(CF.look(eulerAt(u)).multiplyScalar(2.6))); if (i){ la += a[i].distanceTo(a[i-1]); lb += b[i].distanceTo(b[i-1]); } }
+      trL.set(a); trR.set(b);
+      return {la, lb, s};
+    }};
+  },
+  readout:(p,o)=>[['t', f(o.s)],['slerp path of the nose', f(o.la,1)+' studs','acc'],['angle-lerp path', f(o.lb,1)+' studs','bad']],
+  code:(p,o)=>`local start = part.CFrame
+local goal = CFrame.new(part.Position) * CFrame.fromEulerAnglesYXZ(math.rad(${p.pitch}), math.rad(${p.yaw}), math.rad(${p.roll}))
+
+-- good: CFrame:Lerp blends the rotation along the shortest path (a slerp)
+part.CFrame = start:Lerp(goal, t)
+
+-- bad: blending the three angles separately takes a detour
+-- local rx, ry, rz = goal:ToEulerAnglesYXZ()
+-- part.CFrame = CFrame.new(pos) * CFrame.fromEulerAnglesYXZ(rx * t, ry * t, rz * t)`,
+  body:`<p>A rotation isn't really three separate angles. Lerping turn, tilt and roll on their own makes the part wobble through orientations that aren't on the way, especially when all three are big. <code>CFrame:Lerp</code> uses <b>quaternions</b> internally and turns around one fixed axis, the shortest possible path.</p>
+<p>The lines trace where each part's nose (LookVector) travels. The orange slerp path is a clean arc on the sphere. The red one loops and swerves to reach the same final pose (the faint block). Compare the path lengths in the readout.</p>`,
+  uses:[`<b>Camera transitions</b> between two very different views.`,
+        `<b>Animation blending</b> and ragdoll recovery.`,
+        `<b>Any smooth turn</b> where the start and end are far apart.`],
+  gotchas:[`For small turns around a single axis (a door, a turret's yaw), lerping that one angle is fine and easier to control.`,
+           `TweenService on <code>CFrame</code> already slerps. Tweening <code>Orientation</code> lerps the angles instead.`]
+});
+}
 })();

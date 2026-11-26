@@ -407,4 +407,57 @@ position += velocity * dt`,
            `Large <code>dt</code> steps drift away from the exact formula. For accuracy, use the formula with total time instead of stepping.`]
 });
 }
+
+{
+const {THREE, V, f, vs, R, S, G, mulberry32} = Lab;
+
+demo({
+  id:'vec-sphere', adv:true, title:'Even points on a sphere', short:'Fibonacci sphere', sig:'y = 1 − 2(i + 0.5)/n  ·  angle = i × golden angle',
+  view:{theta:0.6, phi:1.0, r:18, ty:5},
+  params:[S('method','Method',[['fib','Fibonacci sphere (even)'],['grid','Latitude / longitude grid'],['random','Random directions']],'fib'), R('n','Points',10,400,10,150), R('seed','Seed (random only)',1,99,1,3)],
+  setup(K){
+    const Cn = V(0,5,0), R0 = 4.5; K.wsphere(R0,'--muted',0.12).position.copy(Cn);
+    const mesh = K.add(new THREE.InstancedMesh(G.sphere, K.mat('--accent'), 400)); const dm = new THREE.Matrix4(), q = new THREE.Quaternion();
+    let key = '', res = null;
+    return {update(p){
+      const k = [p.method,p.n,p.seed].join('|'); if (k !== key){ key = k;
+        const pts = [], n = p.n, ga = Math.PI*(3 - Math.sqrt(5));
+        if (p.method==='fib') for (let i=0;i<n;i++){ const y = 1 - 2*(i+0.5)/n, r = Math.sqrt(1-y*y), th = i*ga; pts.push(V(Math.cos(th)*r, y, Math.sin(th)*r)); }
+        else if (p.method==='grid'){ const rows = Math.max(2, Math.round(Math.sqrt(n/2))), cols = Math.max(3, Math.round(n/rows)); for (let a=0;a<rows;a++) for (let b=0;b<cols;b++){ const lat = -Math.PI/2 + (a+0.5)/rows*Math.PI, lon = b/cols*Math.PI*2; pts.push(V(Math.cos(lat)*Math.cos(lon), Math.sin(lat), Math.cos(lat)*Math.sin(lon))); } }
+        else { const rng = mulberry32(p.seed*41); for (let i=0;i<n;i++){ const z = rng()*2-1, a = rng()*Math.PI*2, r = Math.sqrt(1-z*z); pts.push(V(Math.cos(a)*r, z, Math.sin(a)*r)); } }
+        pts.forEach((d,i)=>{ dm.compose(Cn.clone().addScaledVector(d, R0), q, V(0.12,0.12,0.12)); mesh.setMatrixAt(i, dm); });
+        mesh.count = pts.length; mesh.instanceMatrix.needsUpdate = true;
+        let minD = Infinity, maxNN = 0; for (let i=0;i<pts.length;i++){ let nn = Infinity; for (let j=0;j<pts.length;j++) if (i!==j) nn = Math.min(nn, pts[i].distanceToSquared(pts[j])); nn = Math.sqrt(nn)*R0; minD = Math.min(minD, nn); maxNN = Math.max(maxNN, nn); }
+        res = {count:pts.length, minD, maxNN};
+      }
+      return res;
+    }};
+  },
+  readout:(p,o)=>[['points', String(o.count)],['closest pair', f(o.minD,2)+' studs'],['biggest gap', f(o.maxNN,2)+' studs'],['evenness (closest ÷ gap)', f(o.minD/o.maxNN,2), o.minD/o.maxNN > 0.6 ? 'ok' : 'bad']],
+  code:(p,o)=>`local GOLDEN_ANGLE = math.pi * (3 - math.sqrt(5))   -- about 137.5°
+
+local function fibonacciSphere(n)
+    local directions = {}
+    for i = 0, n - 1 do
+        local y = 1 - 2 * (i + 0.5) / n          -- from top to bottom in even steps
+        local radius = math.sqrt(1 - y * y)     -- width of the sphere at that height
+        local angle = i * GOLDEN_ANGLE
+        table.insert(directions, Vector3.new(math.cos(angle) * radius, y, math.sin(angle) * radius))
+    end
+    return directions
+end
+
+-- a nova: ${p.n} bullets in every direction, evenly spaced
+for _, dir in fibonacciSphere(${p.n}) do
+    fireBullet(origin, dir * 80)
+end`,
+  body:`<p>Spreading points evenly over a sphere is harder than it looks. A latitude/longitude grid crowds points at the poles, like the lines on a globe. Random directions leave clumps and holes. The <b>Fibonacci sphere</b> fixes both: step down the sphere in equal heights and turn by the <b>golden angle</b> (about 137.5°) each time.</p>
+<p>The golden angle never lines up with itself, so no two points stack. Compare the evenness score for each method, and orbit to the top of the grid version to see the bunching.</p>`,
+  uses:[`<b>Novas and burst attacks</b> that fire in every direction.`,
+        `<b>Sensor rays</b> around an AI or a drone, without blind spots.`,
+        `<b>Placing trees, rocks or stars</b> evenly on a planet.`],
+  gotchas:[`Random directions need care too: pick a random height (−1 to 1) and a random angle, as in the random method here, or they bunch at the poles.`,
+           `For half a sphere (a dome), only use the points with y ≥ 0.`]
+});
+}
 })();

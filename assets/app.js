@@ -14,6 +14,9 @@ const GLYPH = {
   curve:`<path d="M6 32 Q 20 2, 34 32" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linecap="round"/><path d="M6 32 L20 6 L34 32" fill="none" stroke="var(--muted)" stroke-width="1.2" stroke-dasharray="2 2"/><circle cx="20" cy="6" r="2.6" fill="var(--muted)"/><circle cx="6" cy="32" r="3" fill="var(--va)"/><circle cx="34" cy="32" r="3" fill="var(--vb)"/>`,
   dice:`<rect x="5" y="22" width="6" height="12" rx="1" fill="var(--part)"/><rect x="13" y="12" width="6" height="22" rx="1" fill="var(--accent)"/><rect x="21" y="6" width="6" height="28" rx="1" fill="var(--accent)"/><rect x="29" y="18" width="6" height="16" rx="1" fill="var(--part)"/>`,
   ray:`<rect x="26" y="8" width="9" height="24" rx="1.5" fill="var(--part)"/><line x1="4" y1="28" x2="26" y2="18" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round"/><line x1="26" y1="18" x2="18" y2="6" stroke="var(--accent)" stroke-width="2" stroke-dasharray="3 2" stroke-linecap="round"/><circle cx="26" cy="18" r="2.6" fill="var(--ink)"/>`,
+  geo:`<path d="M6 30 L12 8 L24 14 L34 6 L30 32 L18 24 Z" fill="var(--va)" fill-opacity=".25" stroke="var(--va)" stroke-width="2" stroke-linejoin="round"/><circle cx="20" cy="20" r="3.2" fill="var(--accent)"/><line x1="20" y1="20" x2="38" y2="20" stroke="var(--muted)" stroke-width="1.3" stroke-dasharray="2 2"/>`,
+  arm:`<line x1="6" y1="10" x2="18" y2="26" stroke="var(--va)" stroke-width="4" stroke-linecap="round"/><line x1="18" y1="26" x2="32" y2="14" stroke="var(--vb)" stroke-width="3.5" stroke-linecap="round"/><circle cx="6" cy="10" r="3" fill="var(--ink)"/><circle cx="18" cy="26" r="2.8" fill="var(--ink)"/><circle cx="34" cy="12" r="3.2" fill="none" stroke="var(--accent)" stroke-width="2"/>`,
+  phys:`<path d="M4 34 L36 34" stroke="var(--part)" stroke-width="2.5" stroke-linecap="round"/><path d="M6 8 Q 12 34 16 34 Q 22 16 26 34 Q 30 26 33 34" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-dasharray="2.5 2"/><circle cx="6" cy="8" r="3.6" fill="var(--accent)"/>`,
   bits:`<rect x="3" y="12" width="7" height="16" rx="1.2" fill="var(--accent)"/><rect x="12" y="22" width="7" height="6" rx="1.2" fill="var(--part)"/><rect x="21" y="12" width="7" height="16" rx="1.2" fill="var(--accent)"/><rect x="30" y="12" width="7" height="16" rx="1.2" fill="var(--accent)"/>`,
 };
 const glyph = (g, s=40)=>`<svg width="${s}" height="${s}" viewBox="0 0 40 40" aria-hidden="true">${GLYPH[g]||''}</svg>`;
@@ -21,7 +24,7 @@ const demoById = id=>demos.find(d=>d.id===id);
 const subjById = id=>subjects.find(s=>s.id===id);
 
 /* ---------- home ---------- */
-$('subjects').innerHTML = subjects.map(s=>`<a class="subj-card" href="#${s.id}">${glyph(s.glyph)}<h3>${esc(s.title)}</h3><p>${esc(s.blurb)}</p><span class="count">${s.demos.length} topics</span></a>`).join('');
+$('subjects').innerHTML = subjects.map(s=>`<a class="subj-card" href="#${s.id}">${glyph(s.glyph)}<h3>${esc(s.title)}</h3><p>${esc(s.blurb)}</p><span class="count">${s.demos.length} topics${s.level ? ` <span class="tag-adv">${esc(s.level)}</span>` : ''}</span></a>`).join('');
 
 let finderFilter = 'all', finderQuery = '';
 const FINDER = Lab.FINDER.filter(([, , id])=>demoById(id));
@@ -44,7 +47,7 @@ renderFinder();
 
 /* ---------- sidebar ---------- */
 const chev = `<svg class="chev" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2 L8 6 L4 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-$('srailFull').innerHTML = subjects.map(s=>`<details class="sgroup" data-s="${s.id}"><summary>${glyph(s.glyph,22)}<span>${esc(s.title)}</span><span class="n">${s.demos.length}</span>${chev}</summary><div class="tlist">${s.demos.map(d=>`<a href="#${d.id}" data-d="${d.id}">${esc(d.title)}<small>${esc(d.short)}</small></a>`).join('')}</div></details>`).join('');
+$('srailFull').innerHTML = subjects.map(s=>`<details class="sgroup" data-s="${s.id}"><summary>${glyph(s.glyph,22)}<span>${esc(s.title)}${s.level ? '<span class="tag-adv">Adv</span>' : ''}</span><span class="n">${s.demos.length}</span>${chev}</summary><div class="tlist">${s.demos.map(d=>`<a href="#${d.id}" data-d="${d.id}">${esc(d.title)}${d.adv ? '<span class="tag-adv">Adv</span>' : ''}<small>${esc(d.short)}</small></a>`).join('')}</div></details>`).join('');
 $('srailMini').innerHTML = subjects.map(s=>`<a href="#${s.id}" data-s="${s.id}" title="${esc(s.title)}" aria-label="${esc(s.title)}">${glyph(s.glyph,24)}</a>`).join('');
 const narrow = window.matchMedia('(max-width: 900px)');
 const store = {get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }, set(k,v){ try { localStorage.setItem(k,v); } catch(e){} }};
@@ -127,7 +130,7 @@ const TABS = [['idea','Idea'],['code','Luau code'],['uses','In games'],['gotchas
 function renderLesson(d){
   const s = subjById(d.subject), idx = s.demos.indexOf(d), prev = s.demos[idx-1], next = s.demos[idx+1];
   lessonEl.innerHTML = `
-    <p class="eyebrow">${esc(s.title)} · ${idx+1} of ${s.demos.length}</p>
+    <p class="eyebrow">${esc(s.title)} · ${idx+1} of ${s.demos.length}${d.adv || s.level ? ' · Advanced' : ''}</p>
     <h2>${esc(d.title)}</h2>
     <code class="sig">${esc(d.sig)}</code>
     <div class="ltabs" role="tablist">${TABS.map(([k,t])=>`<button type="button" role="tab" data-t="${k}" aria-selected="${k===lessonTab}">${t}</button>`).join('')}</div>

@@ -486,4 +486,64 @@ end)
            `For very small <code>rate * dt</code>, the chance is almost exactly <code>rate * dt</code>, but <code>math.exp</code> stays correct at low frame rates too.`]
 });
 }
+
+{
+demo({
+  id:'pr-montecarlo', adv:true, title:'Monte Carlo: answer by simulating', short:'run it many times, count', sig:'chance ≈ successes / trials   (error shrinks like 1 / √trials)',
+  view:{theta:0.0, phi:0.8, r:28, ty:2, tz:-2}, env:'grid',
+  params:[S('n','Random points',[['50','50'],['200','200'],['1000','1,000'],['5000','5,000']],'1000'), R('seed','Seed',1,99,1,7)],
+  setup(K){
+    const S2 = 7, mesh = K.add(new THREE.InstancedMesh(G.box, new THREE.MeshLambertMaterial({color:0xffffff}), 5000)); const dm = new THREE.Matrix4(), q = new THREE.Quaternion();
+    const sq = K.line('--muted',{max:5}); sq.set(V(-S2,0.03,-S2+2),V(S2,0.03,-S2+2),V(S2,0.03,S2+2),V(-S2,0.03,S2+2),V(-S2,0.03,-S2+2));
+    const ring = K.ring(S2,'--accent',{y:0.04}); ring.position.z = 2;
+    const plot = K.line('--va',{max:401}), piL = K.line('--accent',{dashed:true}); const Z = -9;
+    K.label('estimate as points are added','--muted').at(V(0,7.5,Z)); const le = K.label('','--va','big'), lp = K.label('π = 3.1416','--accent');
+    let key = '', res = null; const cIn = C('--accent'), cOut = C('--part');
+    return {update(p){
+      const k = p.n+'|'+p.seed; if (k !== key){ key = k; const n = +p.n, rng = mulberry32(p.seed*977); let inside = 0; const est = [];
+        for (let i=0;i<n;i++){ const x = rng()*2-1, z = rng()*2-1, inn = x*x+z*z <= 1; if (inn) inside++; dm.compose(V(x*S2,0.12,z*S2+2), q, V(0.12,0.12,0.12)); mesh.setMatrixAt(i, dm); mesh.setColorAt(i, inn ? cIn : cOut); est.push(4*inside/(i+1)); }
+        mesh.count = n; mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+        const y = e=>4 + (e - Math.PI)*3, step = Math.max(1, Math.floor(n/400)), pts = [];
+        for (let i=0;i<n;i+=step) pts.push(V(-10 + i/(n-1)*20, Math.max(0.2, Math.min(7, y(est[i]))), Z)); plot.set(pts);
+        piL.set(V(-10,4,Z), V(10,4,Z)); lp.at(V(11.5,4,Z)); le.at(V(10,Math.max(0.6,Math.min(7.4,y(est[n-1])+0.6)),Z)).text(f(est[n-1],4));
+        res = {est:est[n-1], inside, n};
+      }
+      return res;
+    }};
+  },
+  readout:(p,o)=>[['inside the circle', `${o.inside} of ${o.n}`],['estimate 4 × inside / total', f(o.est,4),'acc'],['error', f(Math.abs(o.est-Math.PI),4)],['typical error at this size', '±'+f(1.64/Math.sqrt(o.n),3)]],
+  code:(p,o)=>`-- the classic: estimate pi from random points in a square
+local rng = Random.new(${p.seed})
+local inside = 0
+for i = 1, ${p.n} do
+    local x, z = rng:NextNumber(-1, 1), rng:NextNumber(-1, 1)
+    if x * x + z * z <= 1 then inside += 1 end
+end
+print(4 * inside / ${p.n})   --> ${f(o.est,4)}
+
+-- the useful version: estimate a game chance that's hard to work out by hand
+local function playerSurvivesWave()
+    local hp = 100
+    for _ = 1, 5 do                                  -- 5 enemies attack
+        if rng:NextNumber() < 0.3 then               -- 30% hit chance
+            hp -= rng:NextInteger(15, 30)            -- random damage
+        end
+    end
+    return hp > 0
+end
+
+local wins, TRIALS = 0, 10000
+for _ = 1, TRIALS do
+    if playerSurvivesWave() then wins += 1 end
+end
+print(("survives %.1f%% of waves"):format(wins / TRIALS * 100))`,
+  body:`<p>Some chances are too tangled to work out on paper: crits, random damage, several enemies, abilities with cooldowns. <b>Monte Carlo</b> simulation skips the maths: play the situation thousands of times with real random numbers and count how often each outcome happens.</p>
+<p>The demo estimates π: the circle covers π/4 of the square, so 4 × (points inside ÷ all points) approaches π. Watch the plot settle as points are added. The error only shrinks with the <b>square root</b> of the trials, so 100 times more points gives about 10 times more accuracy.</p>`,
+  uses:[`<b>Balancing fights</b>: how often does a level-5 player survive this wave?`,
+        `<b>Checking loot and economy changes</b> before players see them.`,
+        `<b>Testing AI and procedural generation</b>: how often does the map generator make a dead end?`],
+  gotchas:[`Run big simulations in Studio's command bar or a test script, not in live game code.`,
+           `A few hundred trials is only good to a few percent. Use thousands before trusting small differences.`]
+});
+}
 })();

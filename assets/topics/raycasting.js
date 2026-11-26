@@ -549,4 +549,55 @@ end)`,
            `Snapping straight to the new CFrame looks jittery on rough ground. Smooth it with <code>CFrame:Lerp</code> and <code>1 - math.exp(-k * dt)</code>.`]
 });
 }
+
+{
+demo({
+  id:'rc-ccd', adv:true, title:'Fast bullets: no tunnelling', short:'raycast from last to new position', sig:'workspace:Raycast(lastPosition, newPosition - lastPosition)',
+  view:{theta:0.0, phi:0.6, r:24, ty:1},
+  params:[R('speed','Bullet moves per frame',0.5,8,0.25,3.5,' studs'), R('thick','Wall thickness',0.2,3,0.1,0.6), R('start','Start offset',0,4,0.25,1.25)],
+  setup(K){
+    const wall = K.part(V(1,4,6),'--part',{front:false}); wall.position.set(0,2,0);
+    const dotsA = Array.from({length:40}, ()=>K.point('--bad',0.14)), dotsB = Array.from({length:40}, ()=>K.point('--accent',0.14));
+    const segB = K.line('--accent',{max:40}), hitA = K.label('','--bad','big'), hitB = K.label('','--accent','big'), mark = K.point('--accent',0.28);
+    K.label('checking positions only','--bad','big').at(V(-11,2.3,-1.5)).el.style.translate = '0 0'; K.label('raycast between positions','--accent','big').at(V(-11,2.3,1.5)).el.style.translate = '0 0';
+    return {update(p){
+      wall.resize(V(p.thick,4,6)); const w = p.thick/2, x0 = -12 + p.start;
+      const xs = []; for (let i=0;i<40;i++){ const x = x0 + i*p.speed; if (x > 12) break; xs.push(x); }
+      let caughtA = -1; xs.forEach((x,i)=>{ if (caughtA < 0 && x >= -w && x <= w) caughtA = i; });
+      let caughtB = -1; for (let i=1;i<xs.length;i++) if (caughtB < 0 && xs[i-1] < -w && xs[i] >= -w){ caughtB = i; }
+      dotsA.forEach((d,i)=>{ d.visible = i < xs.length && (caughtA < 0 || i <= caughtA); if (d.visible) d.position.set(xs[i],1.2,-1.5); });
+      dotsB.forEach((d,i)=>{ d.visible = i < xs.length && (caughtB < 0 || i < caughtB); if (d.visible) d.position.set(xs[i],1.2,1.5); });
+      const segPts = xs.slice(0, caughtB < 0 ? xs.length : caughtB).map(x=>V(x,1.2,1.5)); if (caughtB > 0) segPts.push(V(-w,1.2,1.5)); segB.set(segPts);
+      mark.visible = caughtB > 0; mark.position.set(-w,1.2,1.5);
+      hitA.at(V(4,0.4,-1.5)).text(caughtA >= 0 ? 'caught' : 'went straight through!').color(caughtA >= 0 ? '--ok' : '--bad');
+      hitB.at(V(-w-0.2,2.1,1.5)).text(caughtB > 0 ? 'hit on frame ' + caughtB : '');
+      return {missed: caughtA < 0, frames: caughtB};
+    }};
+  },
+  readout:(p,o)=>[['position check', o.missed ? 'missed the wall' : 'hit', o.missed ? 'bad' : 'ok'],['segment raycast', 'hit', 'ok'],['safe if step <', f(p.thick,1)+' studs (wall thickness)']],
+  code:(p,o)=>`local velocity = direction * SPEED            -- ${f(p.speed)} studs per frame at 60 FPS
+local lastPosition = muzzle.Position
+
+local connection
+connection = RunService.Heartbeat:Connect(function(dt)
+    local newPosition = lastPosition + velocity * dt
+    -- check the whole stretch travelled this frame, not just the end point
+    local result = workspace:Raycast(lastPosition, newPosition - lastPosition, params)
+    if result then
+        explode(result.Position)
+        connection:Disconnect()
+        return
+    end
+    bullet.Position = newPosition
+    lastPosition = newPosition
+end)`,
+  body:`<p>A fast projectile moves in jumps, one per frame. If you only check where it is each frame (or rely on <code>Touched</code>), it can be on one side of a thin wall in one frame and the other side in the next. It <b>tunnels</b> straight through.</p>
+<p>The fix is <b>continuous collision detection</b>: each frame, raycast from the last position to the new one. The ray covers every point in between, so nothing is skipped. Raise the speed or thin the wall and the red bullet slips through, while the orange one always stops at the surface.</p>`,
+  uses:[`<b>Bullets, arrows and thrown weapons</b> that move fast.`,
+        `<b>Fast-moving players</b> (dashes, teleport steps) that shouldn't clip through walls.`,
+        `<b>Server hit validation</b>: check the path between two reported positions.`],
+  gotchas:[`Gravity curves the real path, but over one frame a straight segment is close enough.`,
+           `Exclude the shooter and the bullet part itself from the raycast params.`]
+});
+}
 })();
