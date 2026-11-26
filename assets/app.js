@@ -72,6 +72,20 @@ function setCollapsed(c){
 }
 setCollapsed(store.get('rml-rail-collapsed') === '1');
 const closeDrawer = ()=>document.body.classList.remove('rail-open');
+/* sidebar width: drag the handle on its right edge (200 to 440 px), double-click to reset */
+const RAIL_MIN = 200, RAIL_MAX = 440, RAIL_DEFAULT = 260;
+const setRailWidth = w=>{ w = Math.round(Math.min(RAIL_MAX, Math.max(RAIL_MIN, w))); document.body.style.setProperty('--rail-w', w + 'px'); return w; };
+setRailWidth(parseFloat(store.get('rml-rail-w')) || RAIL_DEFAULT);
+$('railResize').addEventListener('pointerdown', e=>{
+  e.preventDefault();
+  const handle = e.currentTarget, left = $('srail').getBoundingClientRect().left;
+  handle.setPointerCapture(e.pointerId); document.body.classList.add('rail-resizing');
+  const move = ev=>setRailWidth(ev.clientX - left);
+  const up = ev=>{ store.set('rml-rail-w', String(setRailWidth(ev.clientX - left))); document.body.classList.remove('rail-resizing');
+    handle.removeEventListener('pointermove', move); handle.removeEventListener('pointerup', up); window.dispatchEvent(new Event('resize')); };
+  handle.addEventListener('pointermove', move); handle.addEventListener('pointerup', up);
+});
+$('railResize').addEventListener('dblclick', ()=>{ store.set('rml-rail-w', String(setRailWidth(RAIL_DEFAULT))); window.dispatchEvent(new Event('resize')); });
 $('railToggle').addEventListener('click', ()=>{ if (narrow.matches) closeDrawer(); else setCollapsed(!document.body.classList.contains('rail-collapsed')); });
 $('drawerBtn').addEventListener('click', ()=>document.body.classList.add('rail-open'));
 $('railBackdrop').addEventListener('click', closeDrawer);
