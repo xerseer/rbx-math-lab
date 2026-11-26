@@ -283,7 +283,7 @@ footer.note{margin-top:44px; color:var(--muted); font-size:calc(13px * var(--ts,
   --code-bg:#F4F0E9; --c-kw:#8A3FB8; --c-num:#B4540B; --c-str:#2F7A47; --c-com:#9A9184; --c-glob:#2C5DAF;
   color-scheme:light;
 }
-:root[data-theme="mono"]{
+:root[data-theme="light"]{
   --bg:#FFFFFF; --panel:#FFFFFF; --panel-2:#F4F4F5; --ink:#0A0A0A; --muted:#6B6B70; --line:#E4E4E7;
   --accent:#2F5BFF; --accent-ink:#1F45D6; --accent-soft:#EAF0FF;
   --x:#E5484D; --y:#30A46C; --z:#2F5BFF; --va:#0E7C86; --vb:#E5484D; --ok:#30A46C; --bad:#E5484D;
