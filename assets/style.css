@@ -45,7 +45,7 @@ a{color:var(--accent-ink)}
 button,select,input{font:inherit; color:inherit}
 button{cursor:pointer}
 :focus-visible{outline:2px solid var(--accent); outline-offset:2px}
-.wrap{max-width:1440px; margin:0 auto}
+.wrap{max-width:2100px; margin:0 auto}
 
 /* ---------- top bar ---------- */
 .topbar{position:sticky; top:0; z-index:20; background:color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter:blur(8px);
