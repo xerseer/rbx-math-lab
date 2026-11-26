@@ -32,23 +32,48 @@ const GLYPH = {
   bits:`<rect x="3" y="12" width="7" height="16" rx="1.2" fill="var(--accent)"/><rect x="12" y="22" width="7" height="6" rx="1.2" fill="var(--part)"/><rect x="21" y="12" width="7" height="16" rx="1.2" fill="var(--accent)"/><rect x="30" y="12" width="7" height="16" rx="1.2" fill="var(--accent)"/>`,
 };
 const glyph = (g, s=40)=>`<svg width="${s}" height="${s}" viewBox="0 0 40 40" aria-hidden="true">${GLYPH[g]||''}</svg>`;
+const chev = `<svg class="chev" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2 L8 6 L4 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const demoById = id=>demos.find(d=>d.id===id);
 const subjById = id=>subjects.find(s=>s.id===id);
 
+/* ---------- categories: a few drop-downs instead of one long list ---------- */
+const CATEGORIES = [
+  {id:'space', title:'Vectors & space', blurb:'Positions, directions, CFrames and rays.', subjects:['vector3', 'vecmath', 'cframe', 'raycast']},
+  {id:'core', title:'Core maths', blurb:'The math library, angles, chance and number tricks.', subjects:['math', 'trig', 'probability', 'num', 'bitwise']},
+  {id:'motion', title:'Motion, colour & UI', blurb:'Movement over time, curves, colours, grids and screen space.', subjects:['anim', 'bezier', 'color', 'grid', 'ui']},
+  {id:'adv', title:'Advanced subjects', blurb:'Deeper techniques for bigger systems: physics, pathfinding, procedural worlds, networking and more.', subjects:subjects.filter(s=>s.level).map(s=>s.id)},
+];
+{ // anything not placed above still shows up
+  const placed = new Set(CATEGORIES.flatMap(c=>c.subjects));
+  const extra = subjects.filter(s=>!placed.has(s.id)).map(s=>s.id);
+  if (extra.length) CATEGORIES[2].subjects.push(...extra);
+  CATEGORIES.forEach(c=>{ c.list = c.subjects.map(id=>subjects.find(s=>s.id === id)).filter(Boolean); });
+}
+const catOf = subjectId=>CATEGORIES.find(c=>c.subjects.includes(subjectId));
+
 /* ---------- home ---------- */
 const card = s=>`<a class="subj-card" href="#${s.id}">${glyph(s.glyph)}<h3>${esc(s.title)}</h3><p>${esc(s.blurb)}</p><span class="count">${s.demos.length} topics${s.level ? ` <span class="tag-adv">${esc(s.level)}</span>` : ''}</span></a>`;
-$('subjects').innerHTML = subjects.filter(s=>!s.level).map(card).join('');
-$('subjectsAdv').innerHTML = subjects.filter(s=>s.level).map(card).join('');
+let homeOpen = ['space'];
+try { homeOpen = JSON.parse(localStorage.getItem('rml-home-open') || '["space"]'); } catch(e){}
+$('subjects').innerHTML = CATEGORIES.map(c=>`<details class="hcat" data-c="${c.id}"${homeOpen.includes(c.id) ? ' open' : ''}><summary>
+  <span class="hcat-icons">${c.list.slice(0, 4).map(s=>glyph(s.glyph, 26)).join('')}</span>
+  <span class="hcat-text"><h2>${esc(c.title)}</h2><p>${esc(c.blurb)}</p></span>
+  <span class="hcat-n">${c.list.length} subjects · ${c.list.reduce((n, s)=>n + s.demos.length, 0)} topics</span>${chev}</summary>
+  <div class="subjects">${c.list.map(card).join('')}</div></details>`).join('');
+$('subjects').addEventListener('toggle', ()=>{
+  const open = [...document.querySelectorAll('#subjects .hcat[open]')].map(d=>d.dataset.c);
+  try { localStorage.setItem('rml-home-open', JSON.stringify(open)); } catch(e){}
+}, true);
 
 let finderFilter = 'all', finderQuery = '';
 const FINDER = Lab.FINDER.filter(([, , id])=>demoById(id));
 function renderFinder(){
-  const chips = [['all','All']].concat(subjects.map(s=>[s.id, s.title]));
+  const chips = [['all','All']].concat(CATEGORIES.map(c=>[c.id, c.title]));
   $('finderFilter').innerHTML = chips.map(([id,t])=>`<button type="button" class="chip" data-f="${id}" aria-pressed="${finderFilter===id}">${esc(t)}</button>`).join('');
   const words = finderQuery.toLowerCase().split(/\s+/).filter(Boolean);
   const rows = FINDER.filter(([t,c,id])=>{
     const d = demoById(id), s = subjById(d.subject);
-    if (finderFilter !== 'all' && d.subject !== finderFilter) return false;
+    if (finderFilter !== 'all' && catOf(d.subject).id !== finderFilter) return false;
     const hay = `${t} ${c} ${d.title} ${d.short} ${s.title}`.toLowerCase();
     return words.every(w=>hay.includes(w));
   });
@@ -60,9 +85,9 @@ $('finderSearch').addEventListener('input', e=>{ finderQuery = e.target.value; r
 renderFinder();
 
 /* ---------- sidebar ---------- */
-const chev = `<svg class="chev" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2 L8 6 L4 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-$('srailFull').innerHTML = subjects.map(s=>`<details class="sgroup" data-s="${s.id}"><summary>${glyph(s.glyph,22)}<span>${esc(s.title)}${s.level ? '<span class="tag-adv">Adv</span>' : ''}</span><span class="n">${s.demos.length}</span>${chev}</summary><div class="tlist">${s.demos.map(d=>`<a href="#${d.id}" data-d="${d.id}">${esc(d.title)}${d.adv ? '<span class="tag-adv">Adv</span>' : ''}<small>${esc(d.short)}</small></a>`).join('')}</div></details>`).join('');
-$('srailMini').innerHTML = subjects.map(s=>`<a href="#${s.id}" data-s="${s.id}" title="${esc(s.title)}" aria-label="${esc(s.title)}">${glyph(s.glyph,24)}</a>`).join('');
+const subjectGroup = s=>`<details class="sgroup" data-s="${s.id}"><summary>${glyph(s.glyph,22)}<span>${esc(s.title)}</span><span class="n">${s.demos.length}</span>${chev}</summary><div class="tlist">${s.demos.map(d=>`<a href="#${d.id}" data-d="${d.id}">${esc(d.title)}${d.adv ? '<span class="tag-adv">Adv</span>' : ''}<small>${esc(d.short)}</small></a>`).join('')}</div></details>`;
+$('srailFull').innerHTML = CATEGORIES.map(c=>`<details class="scat" data-c="${c.id}"><summary><span>${esc(c.title)}</span>${chev}</summary><div class="scat-list">${c.list.map(subjectGroup).join('')}</div></details>`).join('');
+$('srailMini').innerHTML = CATEGORIES.map(c=>c.list.map(s=>`<a href="#${s.id}" data-s="${s.id}" title="${esc(s.title)}" aria-label="${esc(s.title)}">${glyph(s.glyph,24)}</a>`).join('')).join('<hr>');
 const narrow = window.matchMedia('(max-width: 900px)');
 const store = {get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }, set(k,v){ try { localStorage.setItem(k,v); } catch(e){} }};
 function setCollapsed(c){
@@ -91,6 +116,8 @@ $('drawerBtn').addEventListener('click', ()=>document.body.classList.add('rail-o
 $('railBackdrop').addEventListener('click', closeDrawer);
 document.addEventListener('keydown', e=>{ if (e.key === 'Escape') closeDrawer(); });
 function updateRail(d, changedSubject){
+  const cat = catOf(d.subject);
+  document.querySelectorAll('#srailFull .scat').forEach(g=>{ const mine = !!cat && g.dataset.c === cat.id; g.classList.toggle('current', mine); if (mine) g.open = true; else if (changedSubject) g.open = false; });
   document.querySelectorAll('#srailFull .sgroup').forEach(g=>{ const mine = g.dataset.s === d.subject; g.classList.toggle('current', mine); if (changedSubject) g.open = mine; else if (mine) g.open = true; });
   document.querySelectorAll('#srailFull .tlist a').forEach(a=>a.setAttribute('aria-current', a.dataset.d === d.id ? 'true' : 'false'));
   document.querySelectorAll('#srailMini a').forEach(a=>a.setAttribute('aria-current', a.dataset.s === d.subject ? 'true' : 'false'));

@@ -398,3 +398,32 @@ body.rail-collapsed .subject-layout{grid-template-columns:calc(56px * var(--icon
 body.panel-resizing{user-select:none}
 body.resizing-sliders{cursor:row-resize}
 body.resizing-lesson{cursor:col-resize}
+
+/* ---------- subject categories (home page and sidebar) ---------- */
+.lbl{will-change:auto}
+.hcats{display:grid; gap:12px}
+.hcat{border:1px solid var(--line); background:var(--panel); border-radius:12px}
+.hcat > summary{list-style:none; display:flex; align-items:center; gap:16px; padding:14px 18px; cursor:pointer; border-radius:12px}
+.hcat > summary::-webkit-details-marker{display:none}
+.hcat > summary:hover{background:var(--panel-2)}
+.hcat-icons{display:flex; flex:none}
+.hcat-icons svg{width:calc(30px * var(--icon, 1)); height:calc(30px * var(--icon, 1)); margin-right:-6px; background:var(--panel); border-radius:8px; padding:2px; border:1px solid var(--line)}
+.hcat-text{min-width:0; margin-left:6px}
+.hcat-text h2{font-size:calc(1.15rem * var(--ts, 1)); letter-spacing:-.01em; margin:0}
+.hcat-text p{margin:2px 0 0; color:var(--muted); font-size:calc(13.5px * var(--ts, 1))}
+.hcat-n{margin-left:auto; flex:none; font-family:var(--f-mono); font-size:calc(12px * var(--ts, 1)); color:var(--muted); white-space:nowrap}
+.hcat .chev{flex:none; color:var(--muted); width:14px; height:14px; transition:rotate .15s}
+.hcat[open] > summary .chev{rotate:90deg}
+.hcat[open] > summary{border-bottom:1px solid var(--line); border-radius:12px 12px 0 0}
+.hcat > .subjects{padding:14px}
+@media (max-width: 640px){ .hcat-icons, .hcat-n{display:none} }
+.scat + .scat{margin-top:4px}
+.scat > summary{list-style:none; display:flex; align-items:center; gap:6px; padding:7px 8px 6px; cursor:pointer; border-radius:7px;
+  font-family:var(--f-display); font-size:calc(11px * var(--ts, 1)); font-weight:600; text-transform:uppercase; letter-spacing:.09em; color:var(--muted)}
+.scat > summary::-webkit-details-marker{display:none}
+.scat > summary:hover{background:var(--panel-2); color:var(--ink)}
+.scat > summary .chev{margin-left:auto; transition:rotate .15s}
+.scat[open] > summary .chev{rotate:90deg}
+.scat.current > summary{color:var(--accent-ink)}
+.scat-list{padding-bottom:4px}
+.srail-mini hr{width:60%; border:0; border-top:1px solid var(--line); margin:4px 0}

@@ -142,9 +142,10 @@ function makeKit(){
   kit.label = (text, color='--ink', cls='')=>{
     const el = document.createElement('div'); el.className = 'lbl ' + cls; el.style.setProperty('--c', `var(${color})`); el.textContent = text; E.labelLayer.appendChild(el);
     const L = {el, pos:V(), visible:true, attach:null, _t:text,
-      text(s){ if (L._t !== s){ el.textContent = s; L._t = s; } return L; },
+      text(s){ if (L._t !== s){ el.textContent = s; L._t = s; L.w = 0; } return L; },
       at(v){ L.pos.copy(v); return L; },
       color(c){ el.style.setProperty('--c', `var(${c})`); return L; },
+      w:0, h:0, x:NaN, y:NaN,
       show(b){ L.visible = b; return L; }};
     E.labels.push(L); return L;
   };
@@ -226,7 +227,7 @@ function build(){
 function load(demo, params){ E.demo = demo; E.params = params; E.simTime = 0; setView(demo.view); build(); resize(); }
 function unload(){ if (E.scene) clearScene(); E.demo = null; E.inst = null; }
 
-function resize(){ if (!E.renderer) return; const w = E.viewport.clientWidth, h = E.viewport.clientHeight; if (!w || !h) return; E.renderer.setSize(w, h, false); E.camera.aspect = w/h; E.camera.updateProjectionMatrix(); }
+function resize(){ if (!E.renderer) return; E.labels.forEach(L=>{ L.w = 0; }); const w = E.viewport.clientWidth, h = E.viewport.clientHeight; if (!w || !h) return; E.renderer.setSize(w, h, false); E.camera.aspect = w/h; E.camera.updateProjectionMatrix(); }
 
 const proj = V();
 function placeLabels(){
@@ -236,7 +237,11 @@ function placeLabels(){
     let vis = L.visible; if (L.attach){ let o = L.attach.obj; while (o){ if (!o.visible) vis = false; o = o.parent; } }
     proj.project(E.camera); vis = vis && proj.z < 1 && proj.z > -1;
     if (L.el.hidden === vis) L.el.hidden = !vis;
-    if (vis) L.el.style.transform = `translate(${((proj.x*0.5+0.5)*w).toFixed(1)}px, ${((-proj.y*0.5+0.5)*h).toFixed(1)}px) translate(-50%, -50%)`;
+    if (!vis) continue;
+    // measure once per text change, then snap the top-left corner to whole pixels so the text never re-rasterises mid-pixel
+    if (!L.w){ L.w = L.el.offsetWidth; L.h = L.el.offsetHeight; }
+    const x = Math.round((proj.x*0.5+0.5)*w - L.w/2), y = Math.round((-proj.y*0.5+0.5)*h - L.h/2);
+    if (x !== L.x || y !== L.y){ L.x = x; L.y = y; L.el.style.transform = `translate3d(${x}px, ${y}px, 0)`; }
   }
 }
 let lastFrame = 0;
