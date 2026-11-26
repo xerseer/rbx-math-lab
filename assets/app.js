@@ -90,10 +90,28 @@ function buildControls(d){
     const wrap = document.createElement('div'); wrap.className = 'ctl' + (p.type==='toggle'?' toggle':'');
     const id = `p-${d.id}-${p.id}`;
     if (p.type==='range'){
-      wrap.innerHTML = `<label for="${id}"><span>${esc(p.label)}</span><output id="${id}-o"></output></label><input type="range" id="${id}" min="${p.min}" max="${p.max}" step="${p.step}" value="${params[p.id]}">`;
-      const inp = wrap.querySelector('input'), o = wrap.querySelector('output');
-      const show = ()=>{ o.textContent = f(params[p.id]) + p.unit; };
-      inp.addEventListener('input', ()=>{ params[p.id] = parseFloat(inp.value); show(); codeDirty = true; }); show();
+      wrap.innerHTML = `<label for="${id}-n"><span>${esc(p.label)}</span><span class="numwrap"><input type="text" inputmode="decimal" class="num" id="${id}-n" autocomplete="off" spellcheck="false" aria-label="${esc(p.label)} value">${p.unit ? `<span class="unit">${esc(p.unit.trim())}</span>` : ''}</span></label><input type="range" id="${id}" min="${p.min}" max="${p.max}" step="${p.step}" value="${params[p.id]}" aria-label="${esc(p.label)}">`;
+      const inp = wrap.querySelector('input[type=range]'), num = wrap.querySelector('.num');
+      const whole = p.step >= 1 && Number.isInteger(p.step);
+      const show = ()=>{ num.value = f(params[p.id]); num.classList.remove('bad'); num.title = ''; };
+      const parse = ()=>{ const v = parseFloat(num.value.replace(',', '.')); return isFinite(v) ? v : null; };
+      const apply = (v, final)=>{
+        let x = Math.min(p.max, Math.max(p.min, v)); if (whole) x = Math.round(x);
+        params[p.id] = x; inp.value = x; codeDirty = true;
+        const out = v < p.min || v > p.max;
+        num.classList.toggle('bad', out && !final); num.title = out ? `Range is ${f(p.min)} to ${f(p.max)}` : '';
+        if (final) show();
+      };
+      inp.addEventListener('input', ()=>{ params[p.id] = parseFloat(inp.value); show(); codeDirty = true; });
+      num.addEventListener('input', ()=>{ const v = parse(); if (v !== null) apply(v, false); });
+      num.addEventListener('change', ()=>{ const v = parse(); if (v !== null) apply(v, true); else show(); });
+      num.addEventListener('keydown', e=>{
+        if (e.key === 'Enter'){ num.blur(); }
+        else if (e.key === 'Escape'){ show(); num.blur(); }
+        else if (e.key === 'ArrowUp' || e.key === 'ArrowDown'){ e.preventDefault(); const v = (parse() ?? params[p.id]) + (e.key === 'ArrowUp' ? 1 : -1) * p.step * (e.shiftKey ? 10 : 1); apply(Math.round(v / p.step) * p.step, true); }
+      });
+      num.addEventListener('focus', ()=>num.select());
+      show();
     } else if (p.type==='select'){
       wrap.innerHTML = `<label for="${id}"><span>${esc(p.label)}</span></label><select id="${id}">${p.options.map(([v,t])=>`<option value="${v}"${v===params[p.id]?' selected':''}>${esc(t)}</option>`).join('')}</select>`;
       const s = wrap.querySelector('select'); s.addEventListener('change', ()=>{ params[p.id] = s.value; codeDirty = true; });

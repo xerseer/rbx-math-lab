@@ -158,7 +158,14 @@ body.rail-collapsed .srail-head{justify-content:center; padding:2px 0 8px}
 .controls{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:12px 14px; display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:10px 18px}
 .ctl{display:grid; gap:3px; min-width:0}
 .ctl label{display:flex; justify-content:space-between; gap:8px; font-size:12.5px; color:var(--muted)}
-.ctl output{font-family:var(--f-mono); color:var(--ink); font-weight:600; font-variant-numeric:tabular-nums; white-space:nowrap}
+.ctl label{align-items:center}
+.numwrap{display:inline-flex; align-items:center; gap:4px; flex:none}
+.ctl .num{width:62px; font-family:var(--f-mono); font-size:12.5px; font-weight:600; color:var(--ink); text-align:right; font-variant-numeric:tabular-nums;
+  background:var(--panel-2); border:1px solid var(--line); border-radius:6px; padding:2px 6px; cursor:text}
+.ctl .num:hover{border-color:var(--muted)}
+.ctl .num:focus{outline:none; border-color:var(--accent); background:var(--panel)}
+.ctl .num.bad{border-color:var(--bad); color:var(--bad)}
+.ctl .unit{font-family:var(--f-mono); font-size:11.5px; color:var(--muted)}
 .ctl input[type=range]{width:100%; accent-color:var(--accent)}
 .ctl select{background:var(--panel-2); border:1px solid var(--line); border-radius:7px; padding:5px 8px; min-width:0}
 .ctl.toggle label{justify-content:flex-start; align-items:center; gap:8px; color:var(--ink); cursor:pointer; padding-top:6px}
