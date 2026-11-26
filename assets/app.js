@@ -143,7 +143,7 @@ function buildControls(d){
 const TABS = [['idea','Idea'],['code','Luau code'],['uses','In games'],['gotchas','Watch out']];
 function renderLesson(d){
   const s = subjById(d.subject), idx = s.demos.indexOf(d), prev = s.demos[idx-1], next = s.demos[idx+1];
-  const ts = Lab.tsScript ? Lab.tsScript(d.id, d.title) : null, tabs = ts ? TABS.concat([['studio','Try in Studio']]) : TABS;
+  const ts = Lab.tsScript ? Lab.tsScript(d.id, d.title) : null, tabs = ts ? [TABS[0], TABS[1], ['studio','Try in Studio'], ...TABS.slice(2)] : TABS;
   if (!ts && lessonTab === 'studio') lessonTab = 'idea';
   lessonEl.innerHTML = `
     <p class="eyebrow">${esc(s.title)} · ${idx+1} of ${s.demos.length}${d.adv || s.level ? ' · Advanced' : ''}</p>
@@ -201,12 +201,6 @@ function showSubject(d){
   liveEl.innerHTML = ''; liveEl.hidden = true;
   $('subjGlyph').innerHTML = glyph(s.glyph, 34); $('subjTitle').textContent = s.title; $('subjBlurb').textContent = s.blurb; $('crumbSubj').textContent = s.title;
   updateRail(d, changedSubject); closeDrawer();
-  if (changedSubject){
-    const st = (Lab.STUDIO || {})[s.id], box = $('studioBox');
-    box.hidden = !st; box.open = false;
-    if (st){ $('studioTitle').textContent = st.title; $('studioWhere').textContent = st.where; $('studioWhat').textContent = st.what;
-      $('studioKind').textContent = st.where.replace(' → ', ' in '); $('studioCode').innerHTML = hl(st.code); }
-  }
   playBtn.hidden = !d.time; playBtn.textContent = engine.playing ? 'Pause' : 'Play';
   buildControls(d); renderLesson(d);
   engine.init($('viewport'), $('cv'), $('labels'));
@@ -215,13 +209,6 @@ function showSubject(d){
   document.title = `${d.title} · Roblox Math Lab`;
   return changedSubject;
 }
-
-$('studioCopy').addEventListener('click', ()=>{
-  const b = $('studioCopy'), txt = $('studioCode').textContent;
-  const done = ok=>{ b.textContent = ok ? 'Copied' : 'Select and copy'; setTimeout(()=>b.textContent='Copy', 1600); };
-  const sel = ()=>{ const r = document.createRange(); r.selectNodeContents($('studioCode')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); };
-  try { navigator.clipboard.writeText(txt).then(()=>done(true), ()=>{ sel(); done(false); }); } catch(e){ sel(); done(false); }
-});
 
 /* ---------- router ---------- */
 const views = {home:$('view-home'), subject:$('view-subject'), ref:$('view-ref')};

@@ -39,14 +39,13 @@ assets/style.css        all styles, light and dark themes
 assets/lab.js           3D engine (three.js), drawing kit, topic registry
 assets/kit2.js          shared helpers: graphs, instanced cubes, label pools, heap
 assets/topics/*.js      one file per subject; each topic is a Lab demo
-assets/studio.js        one ready-to-run Roblox Studio script per subject
 assets/ts-core.js       shared header for the per-topic Studio scripts
 assets/ts-1.js … ts-4.js one ready-to-run Studio script per topic (202)
 assets/reference.js     "I want to…" finder and cheat sheet tables
 assets/app.js           routing and lesson UI
 ```
 
-Every subject page also has a "Try it in Studio" panel, and every topic has a "Try in Studio" tab: a complete Script or LocalScript that builds its own parts, so it runs when pasted into an empty Baseplate.
+Every topic has a "Try in Studio" tab: a complete Script or LocalScript that builds its own parts, so it runs when pasted into an empty Baseplate.
 
 Each topic has its own link, for example `#vec-dot` or `#rc-filter`. A subject link such as `#raycast` opens its first topic.
 
