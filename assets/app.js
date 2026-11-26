@@ -115,6 +115,37 @@ engine.setPlaying(!reduceMotion);
 playBtn.addEventListener('click', ()=>{ engine.setPlaying(!engine.playing); playBtn.textContent = engine.playing ? 'Pause' : 'Play'; });
 $('resetBtn').addEventListener('click', ()=>engine.resetView());
 
+/* resizable panels: the slider panel (drag its top edge) and the lesson panel (drag its left edge).
+   Sizes are set on <body> (not <html>) so dragging doesn't make the 3D scene rebuild its colours. */
+const PANELS = {
+  sliders: {key:'rml-sliders-h', prop:'--sliders-h', min:56, max:()=>$('viewport').clientHeight * 0.85, extra:['--sliders-max', '85%']},
+  lesson: {key:'rml-lesson-w', prop:'--lesson-w', min:300, max:()=>document.querySelector('.workspace').clientWidth * 0.6},
+};
+function setPanel(name, v){
+  const p = PANELS[name], st = document.body.style;
+  if (v == null){ st.removeProperty(p.prop); if (p.extra) st.removeProperty(p.extra[0]); return null; }
+  v = Math.round(Math.min(p.max(), Math.max(p.min, v)));
+  st.setProperty(p.prop, v + 'px'); if (p.extra) st.setProperty(p.extra[0], p.extra[1]);
+  return v;
+}
+function dragResize(handle, name, valueFrom){
+  handle.addEventListener('pointerdown', e=>{
+    e.preventDefault(); e.stopPropagation();
+    handle.setPointerCapture(e.pointerId); document.body.classList.add('panel-resizing', 'resizing-' + name);
+    const move = ev=>setPanel(name, valueFrom(ev));
+    const up = ev=>{ store.set(PANELS[name].key, String(setPanel(name, valueFrom(ev))));
+      document.body.classList.remove('panel-resizing', 'resizing-' + name);
+      handle.removeEventListener('pointermove', move); handle.removeEventListener('pointerup', up); window.dispatchEvent(new Event('resize')); };
+    handle.addEventListener('pointermove', move); handle.addEventListener('pointerup', up);
+  });
+  handle.addEventListener('dblclick', ()=>{ setPanel(name, null); store.set(PANELS[name].key, ''); window.dispatchEvent(new Event('resize')); });
+}
+for (const [name, p] of Object.entries(PANELS)){
+  const saved = parseFloat(store.get(p.key));
+  if (saved > 0){ document.body.style.setProperty(p.prop, Math.max(p.min, saved) + 'px'); if (p.extra) document.body.style.setProperty(p.extra[0], p.extra[1]); }
+}
+dragResize($('lessonResize'), 'lesson', ev=>document.querySelector('.workspace').getBoundingClientRect().right - ev.clientX);
+
 function buildControls(d){
   controlsEl.innerHTML = '';
   d.params.forEach(p=>{
@@ -152,6 +183,10 @@ function buildControls(d){
     }
     controlsEl.appendChild(wrap);
   });
+  const grip = document.createElement('div');
+  grip.className = 'panel-resize sliders-resize'; grip.title = 'Drag to resize, double-click to reset';
+  dragResize(grip, 'sliders', ev=>controlsEl.getBoundingClientRect().bottom - ev.clientY);
+  controlsEl.appendChild(grip);
 }
 
 const TABS = [['idea','Idea'],['code','Luau code'],['uses','In games'],['gotchas','Watch out']];
