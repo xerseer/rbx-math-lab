@@ -277,7 +277,7 @@ function init(viewport, canvas, labelLayer){
   new ResizeObserver(resize).observe(viewport);
   new IntersectionObserver(es=>{ E.onScreen = es[0].isIntersecting; }).observe(viewport);
   const rebuildTheme = ()=>{ if (E.demo) build(); };
-  new MutationObserver(rebuildTheme).observe(document.documentElement, {attributes:true, attributeFilter:['data-theme','class']});
+  new MutationObserver(rebuildTheme).observe(document.documentElement, {attributes:true, attributeFilter:['data-theme','class','style']});
   const mq = window.matchMedia('(prefers-color-scheme: dark)'); if (mq.addEventListener) mq.addEventListener('change', rebuildTheme);
   requestAnimationFrame(frame);
 }
