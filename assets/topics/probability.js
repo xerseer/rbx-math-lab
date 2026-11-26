@@ -233,6 +233,111 @@ local direction = shot.LookVector`,
 });
 
 demo({
+  id:'pr-shuffle', title:'Shuffle bags: no long streaks', short:'Fisher–Yates', sig:'for i = #bag, 2, -1 do  swap(bag[i], bag[rng:NextInteger(1, i)])  end',
+  view:{theta:0.0, phi:0.75, r:22, ty:0}, env:'grid',
+  params:[R('seed','Seed',1,99,1,12), R('copies','Copies of each item per bag',1,3,1,1)],
+  setup(K){
+    const N = 32, cols = ['--x','--y','--z','--accent'], mats = cols.map(c=>K.mat(c));
+    const mk = z=>Array.from({length:N}, (_,i)=>{ const m = K.add(new THREE.Mesh(G.box, mats[0])); m.scale.set(0.55,0.55,0.55); m.position.set(-10+i*0.65, 0.3, z); return m; });
+    const rowA = mk(-1.5), rowB = mk(1.5);
+    K.label('pure random','--ink','big').at(V(-11.3,0.3,-1.5)).el.style.translate = '-50% 0'; K.label('shuffle bag','--ink','big').at(V(-11.3,0.3,1.5)).el.style.translate = '-50% 0';
+    const la = K.label('','--bad'), lb = K.label('','--ok');
+    const streak = seq=>{ let best=1, run=1, at=0; for (let i=1;i<seq.length;i++){ run = seq[i]===seq[i-1] ? run+1 : 1; if (run > best){ best = run; at = i-run+1; } } return {best, at}; };
+    const drought = seq=>{ let worst=0; for (let c=0;c<4;c++){ let last=-1; seq.forEach((x,i)=>{ if (x===c){ worst=Math.max(worst, i-last-1); last=i; } }); worst = Math.max(worst, seq.length-1-last); } return worst; };
+    return {update(p){
+      const rng = mulberry32(p.seed*313);
+      const A = Array.from({length:N}, ()=>Math.floor(rng()*4));
+      const B = []; let bag = [];
+      while (B.length < N){ if (!bag.length){ for (let c=0;c<4;c++) for (let k=0;k<p.copies;k++) bag.push(c); for (let i=bag.length-1;i>0;i--){ const j=Math.floor(rng()*(i+1)); [bag[i],bag[j]]=[bag[j],bag[i]]; } } B.push(bag.pop()); }
+      const sA = streak(A), sB = streak(B);
+      A.forEach((c,i)=>{ rowA[i].material = mats[c]; rowA[i].position.y = (i>=sA.at && i<sA.at+sA.best && sA.best>1) ? 0.9 : 0.3; });
+      B.forEach((c,i)=>{ rowB[i].material = mats[c]; rowB[i].position.y = (i>=sB.at && i<sB.at+sB.best && sB.best>1) ? 0.9 : 0.3; });
+      la.at(V(-10+(sA.at+sA.best/2-0.5)*0.65, 1.6, -1.5)).text(`streak of ${sA.best}`); lb.at(V(-10+(sB.at+sB.best/2-0.5)*0.65, 1.6, 1.5)).text(`longest ${sB.best}`);
+      return {sA:sA.best, sB:sB.best, dA:drought(A), dB:drought(B)};
+    }};
+  },
+  readout:(p,o)=>[['longest streak: random', String(o.sA),'bad'],['longest streak: bag', String(o.sB),'ok'],['longest wait for an item: random', String(o.dA)],['longest wait: bag', String(o.dB),'acc']],
+  code:(p,o)=>`local ITEMS = { "Red", "Green", "Blue", "Gold" }
+local COPIES = ${p.copies}
+local rng = Random.new()
+local bag = {}
+
+local function refill()
+    for _, item in ITEMS do
+        for _ = 1, COPIES do
+            table.insert(bag, item)
+        end
+    end
+    for i = #bag, 2, -1 do                  -- Fisher–Yates shuffle
+        local j = rng:NextInteger(1, i)
+        bag[i], bag[j] = bag[j], bag[i]
+    end
+end
+
+local function nextItem()
+    if #bag == 0 then refill() end
+    return table.remove(bag)              -- each item at least once every ${4*p.copies} picks
+end`,
+  body:`<p>True randomness has streaks. Picking from four items at random, the same one can come up four or five times in a row, and another can vanish for ages. Players read that as "broken" or "rigged".</p>
+<p>A <b>shuffle bag</b> puts every item in a bag, shuffles it and deals them out one by one, then refills. It's still unpredictable, but every item turns up once per bag. Compare the raised blocks (the longest streak) in each row, and try different seeds.</p>
+<p>The shuffle itself is <b>Fisher–Yates</b>: walk backwards through the list and swap each spot with a random earlier one.</p>`,
+  uses:[`<b>Tetris-style piece order</b>, map rotations and music playlists.`,
+        `<b>Fair loot</b>: guarantee each reward shows up within a run.`,
+        `<b>Random dialogue</b> that doesn't repeat the same line twice in a row.`],
+  gotchas:[`A shuffle that picks <code>j</code> from the whole list each time (instead of 1 to i) gives some orders more often than others.`,
+           `More copies per bag makes it feel more random but allows longer streaks.`]
+});
+
+demo({
+  id:'pr-ev', title:'Expected value: is a crate worth it?', short:'Σ chance × reward', sig:'expected value = Σ (chance × reward)',
+  view:{theta:0.0, phi:1.3, r:24, ty:3.5}, env:'grid',
+  params:[R('jp','Jackpot chance',0.5,10,0.5,2,'%'), R('cost','Crate price',10,80,1,30,' coins'), S('opens','Crates opened',[['50','50'],['200','200'],['1000','1,000']],'200'), R('seed','Seed',1,99,1,3)],
+  setup(K){
+    const avg = K.line('--va',{max:401}), evL = K.line('--accent',{dashed:true}), costL = K.line('--bad');
+    K.line('--muted').set(V(-10,0,0),V(10,0,0)); K.line('--muted').set(V(-10,0,0),V(-10,8,0));
+    const lev = K.label('','--accent','big'), lc = K.label('','--bad','big'), la = K.label('running average','--va'), lx = K.label('','--muted');
+    let key='', res=null;
+    return {update(p){
+      const k = [p.jp,p.cost,p.opens,p.seed].join('|');
+      if (k !== key){ key = k;
+        const pj = p.jp/100, table = [[10, 0.75-pj],[50,0.25],[500,pj]], ev = table.reduce((s,[v,c])=>s+v*c,0);
+        const n = +p.opens, rng = mulberry32(p.seed*577); let sum = 0; const avgs = [];
+        for (let i=1;i<=n;i++){ let r = rng(), v = 10; if (r < pj) v = 500; else if (r < pj+0.25) v = 50; sum += v; avgs.push(sum/i); }
+        const top = Math.max(ev, p.cost) * 2.2, y = a=>Math.min(8, a/top*8);
+        const pts = []; const stepN = Math.max(1, Math.floor(n/400)); for (let i=0;i<n;i+=stepN) pts.push(V(-10 + i/(n-1)*20, y(avgs[i]), 0)); avg.set(pts);
+        evL.set(V(-10,y(ev),0), V(10,y(ev),0)); costL.set(V(-10,y(p.cost),0), V(10,y(p.cost),0));
+        lev.at(V(10.6,y(ev),0)).text(`EV ${f(ev,1)}`); lev.el.style.translate = '50% 0'; lc.at(V(10.6,y(p.cost),0)).text(`price ${p.cost}`); lc.el.style.translate = '50% 0';
+        la.at(pts[Math.min(pts.length-1, 6)].clone().add(V(0,0.6,0))); lx.at(V(0,-0.6,0)).text(`crates 1 → ${n}`);
+        res = {ev, final:avgs[n-1], table};
+      }
+      return res;
+    }};
+  },
+  readout:(p,o)=>[['expected value', f(o.ev,1)+' coins','acc'],['player gains per crate', f(o.ev - p.cost,1), o.ev >= p.cost ? 'ok' : 'bad'],['average after '+p.opens, f(o.final,1)]],
+  code:(p,o)=>`local REWARDS = {
+    { amount = 10,  chance = ${f(o.table[0][1],3)} },
+    { amount = 50,  chance = 0.25 },
+    { amount = 500, chance = ${f(o.table[2][1],3)} },   -- jackpot
+}
+
+local expected = 0
+for _, reward in REWARDS do
+    expected += reward.amount * reward.chance
+end
+print(expected)   --> ${f(o.ev,2)} coins per crate on average
+
+local PRICE = ${p.cost}
+print(expected - PRICE)   --> ${f(o.ev - p.cost,2)}  (${o.ev >= p.cost ? 'players come out ahead' : 'the crate is a coin sink'})`,
+  body:`<p>Expected value is the <b>average result per try</b> over the long run: multiply each reward by its chance and add them up. It tells you whether a crate, gamble or upgrade gives back more than it costs, before anyone opens one.</p>
+<p>The teal line is the running average as crates are opened. Early on it swings wildly, especially when a jackpot lands. Over many crates it settles onto the orange EV line. If EV is below the red price line, players lose coins on average and the crate drains your economy.</p>`,
+  uses:[`<b>Economy balancing</b>: make sure crates, spins and upgrades don't print or burn money by accident.`,
+        `<b>Comparing options</b>: a safe 40 coins vs a 10% shot at 500 (EV 50).`,
+        `<b>Setting prices</b> so a reward feels worth it without breaking progression.`],
+  gotchas:[`EV only describes the long run. A single player can be far above or below it, which is why rare jackpots feel exciting and unfair at the same time.`,
+           `Make sure the chances add up to exactly 1, or the EV is wrong.`]
+});
+
+demo({
   id:'m-random', title:'Random spawn points', short:'Random.new(seed)', sig:'Random.new(seed):NextNumber(min, max)  →  number',
   view:{theta:0.2, phi:0.45, r:26, ty:0},
   params:[R('count','Count',5,200,5,120), R('radius','Area radius',2,10,0.5,8), R('seed','Seed',1,99,1,7), S('shape','Method',[['sqrt','Circle with math.sqrt (even)'],['naive','Circle, plain random radius'],['square','Square (x and z)']],'sqrt')],

@@ -54,17 +54,36 @@
           <p>Start from what you're building. Each card opens the topic that solves it.</p>
         </div>
       </div>
-      <div class="finder-filter" id="finderFilter" style="margin-bottom:12px"></div>
+      <div class="finder-tools">
+        <input type="search" id="finderSearch" class="finder-search" placeholder="Search, e.g. aim, loot, slope, grid…" aria-label="Search the I want to list" autocomplete="off">
+        <div class="finder-filter" id="finderFilter"></div>
+      </div>
+      <p class="finder-empty" id="finderEmpty" hidden>Nothing matches that yet. Try a shorter word, or clear the subject filter.</p>
       <div class="finder" id="finder"></div>
     </section>
   </section>
 
   <!-- SUBJECT -->
-  <section id="view-subject" hidden>
+  <section id="view-subject" class="subject-layout" hidden>
+    <aside class="srail" id="srail" aria-label="Subjects and topics">
+      <div class="srail-head">
+        <span>Topics</span>
+        <button type="button" class="icon-btn" id="railToggle" aria-label="Collapse sidebar" title="Collapse sidebar">
+          <svg class="collapse-ico" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 L5 8 L10 13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <svg class="close-ico" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4 L12 12 M12 4 L4 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <nav class="srail-full" id="srailFull"></nav>
+      <nav class="srail-mini" id="srailMini"></nav>
+    </aside>
+    <div class="rail-backdrop" id="railBackdrop"></div>
+    <div class="content">
     <div class="subject-head">
-      <div class="crumbs"><a href="#home">All subjects</a> › <span id="crumbSubj"></span></div>
+      <div class="crumbs">
+        <button type="button" class="drawer-btn" id="drawerBtn"><svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Topics</button>
+        <span><a href="#home">All subjects</a> › <span id="crumbSubj"></span></span>
+      </div>
       <div class="subject-title"><span id="subjGlyph"></span><h1 id="subjTitle"></h1><p id="subjBlurb"></p></div>
-      <nav class="topics" id="topics" aria-label="Topics in this subject"></nav>
     </div>
     <div class="workspace">
       <div class="stage">
@@ -82,6 +101,7 @@
         <div class="live" id="live" hidden></div>
       </div>
       <article class="lesson" id="lesson"></article>
+    </div>
     </div>
   </section>
 

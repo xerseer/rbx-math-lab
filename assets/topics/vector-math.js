@@ -269,6 +269,87 @@ end`,
 });
 
 demo({
+  id:'vec-plane', title:'Which side of a line?', short:'(p - point):Dot(n)', sig:'(p - planePoint):Dot(normal)  →  signed distance',
+  view:{theta:0.35, phi:0.7, r:24, ty:0},
+  params:[R('gate','Gate angle',-90,90,5,20,'°'), R('px','Player X',-9,9,0.5,3), R('pz','Player Z',-9,9,0.5,-4)],
+  setup(K){
+    const gate = K.part(V(8,4,0.15),'--accent',{front:false, opacity:0.35}), front = K.part(V(20,0.02,10),'--va',{front:false, opacity:0.14, edges:false}), back = K.part(V(20,0.02,10),'--vb',{front:false, opacity:0.14, edges:false});
+    const nA = K.arrow('--y',{thick:0.05}), pl = K.part(V(1,2,1),'--va',{front:false}), perp = K.line('--ink',{dashed:true}), foot = K.point('--ink',0.1);
+    const ld = K.label('','--ink','big'), ln = K.label('n = gate.CFrame.LookVector','--y'), lf = K.label('front side (d > 0)','--va'), lb = K.label('back side (d < 0)','--vb');
+    return {update(p){
+      const yaw = p.gate*D2R, n = lookOf(yaw), Gp = V(0,2,0), cf = CF.lookAt(Gp, Gp.clone().add(n));
+      gate.setCF(cf); front.setCF(CF.lookAt(n.clone().multiplyScalar(5).setY(0.01), n.clone().multiplyScalar(6).setY(0.01)));
+      back.setCF(CF.lookAt(n.clone().multiplyScalar(-5).setY(0.01), n.clone().multiplyScalar(-4).setY(0.01)));
+      nA.set(Gp, n.clone().multiplyScalar(2.2)); ln.at(Gp.clone().add(n.clone().multiplyScalar(2.7)).add(V(0,0.4,0)));
+      lf.at(n.clone().multiplyScalar(7).setY(0.3)); lb.at(n.clone().multiplyScalar(-7).setY(0.3));
+      const P = V(p.px,1,p.pz), d = P.clone().sub(V(0,1,0)).dot(n), F = P.clone().addScaledVector(n, -d);
+      pl.position.copy(P); pl.tint(d >= 0 ? '--va' : '--vb'); perp.set(P, F); foot.position.copy(F);
+      ld.at(P.clone().lerp(F,0.5).add(V(0,0.5,0))).text(`d = ${f(d)}`);
+      return {d, n};
+    }};
+  },
+  readout:(p,o)=>[['n', vs(o.n)],['d', f(o.d),'acc'],['side', o.d > 0 ? 'front' : o.d < 0 ? 'back' : 'exactly on the line', o.d >= 0 ? 'ok' : 'bad']],
+  code:(p,o)=>`local n = gate.CFrame.LookVector                 --> ${vs(o.n)}
+local d = (player.Position - gate.Position):Dot(n)   --> ${f(o.d)}
+
+if d > 0 then
+    print("in front of the gate")          -- ${o.d > 0 ? 'true right now' : 'false right now'}
+end
+
+-- crossing a finish line: the sign changes between two frames
+local lastD = {}
+RunService.Heartbeat:Connect(function()
+    local now = (root.Position - finish.Position):Dot(finish.CFrame.LookVector)
+    if lastD[player] and lastD[player] < 0 and now >= 0 then
+        lapCompleted(player)
+    end
+    lastD[player] = now
+end)`,
+  body:`<p>A wall, gate or finish line can be described by any point on it plus its <b>normal</b>, the direction it faces. The dot product of the normal with the offset from that point gives a <b>signed distance</b>: positive in front, negative behind, zero exactly on the line.</p>
+<p>Its size is how far away you are, measured straight across (the dashed line), no matter how far along the gate you stand. Walk the player across the gate and watch the sign flip.</p>`,
+  uses:[`<b>Finish lines and checkpoints</b>: a sign change between frames means the player crossed.`,
+        `<b>Team sides</b>: which half of the arena is a player standing in?`,
+        `<b>One-way doors</b> that only let you through from the front.`],
+  gotchas:[`The gate here is infinite. To limit it to the gate's width, also check how far along it you are with <code>gate.CFrame:PointToObjectSpace(pos).X</code>.`,
+           `Fast players can skip past a thin trigger part in one frame, but they can't skip the sign change. That makes this check more reliable than <code>Touched</code>.`]
+});
+
+demo({
+  id:'vec-basis', title:'Building axes from one direction', short:'CFrame.fromMatrix(pos, right, up)', sig:'right = look:Cross(up).Unit  ·  up = right:Cross(look)  ·  CFrame.fromMatrix',
+  view:{theta:0.7, phi:1.0, r:13, ty:2},
+  params:[R('yaw','Direction: turn',-180,180,5,40,'°'), R('pitch','Direction: tilt',-89,89,1,25,'°')],
+  setup(K){
+    const O = V(0,2,0), part = K.part(V(1.4,0.8,2.4)); part.position.copy(O);
+    const wu = K.arrow('--muted',{thick:0.03, opacity:0.5}), aL = K.arrow('--z',{thick:0.06}), aR = K.arrow('--x',{thick:0.06}), aU = K.arrow('--y',{thick:0.06});
+    wu.set(O.clone().add(V(-2.5,-1,0)), V(0,2,0)); K.label('world up','--muted').at(O.clone().add(V(-2.5,1.4,0)));
+    const lL = K.label('look (given)','--z','big'), lR = K.label('right = look × up','--x'), lU = K.label('up = right × look','--y');
+    return {update(p){
+      const y = p.yaw*D2R, pt = p.pitch*D2R, look = V(-Math.sin(y)*Math.cos(pt), Math.sin(pt), -Math.cos(y)*Math.cos(pt));
+      const rawR = look.clone().cross(UP), weak = rawR.length(), right = rawR.clone().normalize(), up = right.clone().cross(look);
+      const m = new THREE.Matrix4().makeBasis(right, up, look.clone().negate()); m.setPosition(O); part.setCF(m);
+      aL.set(O, look.clone().multiplyScalar(2.6)); aR.set(O, right.clone().multiplyScalar(2)); aU.set(O, up.clone().multiplyScalar(2));
+      lL.at(O.clone().add(look.clone().multiplyScalar(3.1))); lR.at(O.clone().add(right.clone().multiplyScalar(2.5))); lU.at(O.clone().add(up.clone().multiplyScalar(2.5)));
+      return {look, right, up, weak};
+    }};
+  },
+  readout:(p,o)=>[['look', vs(o.look)],['right', vs(o.right)],['up', vs(o.up)],['|look × worldUp|', f(o.weak), o.weak < 0.15 ? 'bad' : 'acc']],
+  code:(p,o)=>`local look = velocity.Unit                       --> ${vs(o.look)}
+local right = look:Cross(Vector3.yAxis).Unit       --> ${vs(o.right)}
+local up = right:Cross(look)                       --> ${vs(o.up)}
+
+-- fromMatrix(position, rightVector, upVector)
+arrow.CFrame = CFrame.fromMatrix(arrow.Position, right, up)
+-- arrow.CFrame.LookVector now equals look`,
+  body:`<p>Sometimes you only know one direction, like a projectile's velocity, and need a whole CFrame. Cross it with world up to get a <b>right</b> vector, then cross right with look to get a true <b>up</b> that's at 90° to both. Those three arrows are a complete set of axes.</p>
+<p><code>CFrame.fromMatrix(pos, right, up)</code> builds the CFrame straight from them. This is what <code>CFrame.lookAt</code> does inside. Tilt the direction close to straight up and watch the readout: look × up shrinks toward zero and the right vector becomes unreliable.</p>`,
+  uses:[`<b>Arrows and missiles</b> that point along their velocity every frame.`,
+        `<b>Aligning to surfaces</b>: use the raycast normal as "up" instead of world up.`,
+        `<b>Custom cameras and vehicles</b> where you build the axes yourself.`],
+  gotchas:[`When the direction is nearly straight up or down, <code>look:Cross(Vector3.yAxis)</code> is close to zero. Switch to a different helper axis, such as <code>Vector3.zAxis</code>, in that case.`,
+           `Normalise <code>right</code> with <code>.Unit</code>. The cross product of two unit vectors is only length 1 when they're at 90°.`]
+});
+
+demo({
   id:'vec-reflect', title:'Reflecting off a wall', short:'d - 2 * d:Dot(n) * n', sig:'d - 2 * d:Dot(n) * n  →  Vector3',
   view:{theta:0.2, phi:0.7, r:20, ty:0.5},
   params:[R('wall','Wall angle',-60,60,5,20,'°'), R('inc','Incoming angle',-75,75,5,35,'°')],

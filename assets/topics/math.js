@@ -1,6 +1,6 @@
 (function(){
 "use strict";
-const {THREE, V, UP, D2R, C, f, vs, lookOf, clamp, G, R, S, T, noise} = Lab;
+const {THREE, V, UP, D2R, C, f, vs, lookOf, clamp, CF, G, R, S, T, noise} = Lab;
 const demo = Lab.subject({
   id:'math', title:'math library', glyph:'wave',
   blurb:'sin, cos, atan2, clamp, rounding, noise and exp, each shown doing a real game job.'
@@ -257,5 +257,139 @@ end)
   gotchas:[`Use the <code>dt</code> that Heartbeat or RenderStepped gives you. Don't assume 1/60.`,
            `Bigger speed = snappier. Around 5 feels floaty, around 20 feels tight.`,
            `Works the same with <code>CFrame:Lerp</code> for smooth turning.`]
+});
+
+const bounceOut = t=>{ const n=7.5625, d=2.75; if (t<1/d) return n*t*t; if (t<2/d) return n*(t-=1.5/d)*t+0.75; if (t<2.5/d) return n*(t-=2.25/d)*t+0.9375; return n*(t-=2.625/d)*t+0.984375; };
+const EASE_IN = {
+  Linear:t=>t, Quad:t=>t*t, Cubic:t=>t*t*t, Sine:t=>1-Math.cos(t*Math.PI/2),
+  Exponential:t=>t===0?0:Math.pow(2,10*t-10),
+  Back:t=>{ const c1=1.70158; return (c1+1)*t*t*t - c1*t*t; },
+  Elastic:t=>t===0||t===1?t:-Math.pow(2,10*t-10)*Math.sin((t*10-10.75)*(2*Math.PI/3)),
+  Bounce:t=>1-bounceOut(1-t),
+};
+function ease(style, dir, t){ const fi = EASE_IN[style]; if (dir==='In') return fi(t); if (dir==='Out') return 1-fi(1-t); return t<0.5 ? fi(2*t)/2 : 1-fi(2-2*t)/2; }
+
+demo({
+  id:'m-easing', title:'Easing curves', short:'Enum.EasingStyle', sig:'TweenService:GetValue(alpha, EasingStyle, EasingDirection)  →  eased alpha', time:true,
+  view:{theta:0.0, phi:1.25, r:19, ty:3}, env:'grid',
+  params:[S('style','EasingStyle',Object.keys(EASE_IN).map(k=>[k,k]),'Back'), S('dir','EasingDirection',[['Out','Out'],['In','In'],['InOut','InOut']],'Out'), R('dur','Duration',0.4,3,0.1,1.2,' s')],
+  setup(K){
+    const X0=-6, X1=6, Y0=1, Y1=6, Z=0;
+    K.line('--muted').set(V(X0,Y0,Z),V(X1,Y0,Z)); K.line('--muted',{dashed:true}).set(V(X0,Y1,Z),V(X1,Y1,Z)); K.line('--muted').set(V(X0,Y0,Z),V(X0,Y1+0.8,Z));
+    K.label('0','--muted').at(V(X0-0.5,Y0,Z)); K.label('1','--muted').at(V(X0-0.5,Y1,Z)); K.label('time →','--muted').at(V(X1-0.6,Y0-0.5,Z)); K.label('value','--muted').at(V(X0,Y1+1.1,Z));
+    const curve = K.line('--accent',{max:121}), dot = K.point('--accent',0.2), vline = K.line('--accent',{dashed:true, opacity:0.6});
+    K.line('--muted',{dashed:true}).set(V(X0,0.05,3),V(X1,0.05,3)); const box = K.part(V(1,1,1),'--accent',{front:false}); const lab = K.label('','--accent','big');
+    let key = '';
+    return {update(p,t){
+      const k = p.style+p.dir; if (k !== key){ key = k; const pts=[]; for (let i=0;i<=120;i++){ const a=i/120; pts.push(V(X0+a*(X1-X0), Y0+ease(p.style,p.dir,a)*(Y1-Y0), Z)); } curve.set(pts); }
+      const a = Math.min(1, (t/p.dur) % 1.6), v = ease(p.style,p.dir,a);
+      const P = V(X0+a*(X1-X0), Y0+v*(Y1-Y0), Z); dot.position.copy(P); vline.set(P, V(P.x,Y0,Z));
+      box.position.set(X0+v*(X1-X0), 0.5, 3); lab.at(V(X0+v*(X1-X0), 1.6, 3)).text(`${f(v)}`);
+      return {a, v};
+    }};
+  },
+  readout:(p,o)=>[['alpha (time)', f(o.a)],['eased value', f(o.v),'acc'],['overshoots?', /Back|Elastic/.test(p.style) && p.dir!=='In' ? 'yes, past 1' : (/Back|Elastic/.test(p.style) ? 'yes, below 0' : 'no')]],
+  code:(p,o)=>`-- let TweenService do it
+local info = TweenInfo.new(${f(p.dur)}, Enum.EasingStyle.${p.style}, Enum.EasingDirection.${p.dir})
+TweenService:Create(door, info, { CFrame = openCFrame }):Play()
+
+-- or ease your own maths with the same curves
+local start = os.clock()
+RunService.RenderStepped:Connect(function()
+    local alpha = math.clamp((os.clock() - start) / ${f(p.dur)}, 0, 1)
+    local eased = TweenService:GetValue(alpha, Enum.EasingStyle.${p.style}, Enum.EasingDirection.${p.dir})
+    gui.Position = startPos:Lerp(endPos, eased)
+end)`,
+  body:`<p>An easing curve turns steady time (0 → 1) into a value that speeds up, slows down, overshoots or bounces on its way from 0 to 1. The graph shows time across and value up; the block below moves by the eased value.</p>
+<p><b>In</b> starts slow, <b>Out</b> ends slow, <b>InOut</b> does both. Out usually feels best for things reacting to the player, because they respond instantly and settle gently. <code>Back</code> and <code>Elastic</code> go past the target and come back, which adds bounce and life to UI.</p>
+<p><code>TweenService:GetValue</code> gives you these exact curves for your own lerps, Bézier t values or anything else.</p>`,
+  uses:[`<b>UI pop-ins</b> with Back Out, and menus sliding with Quad Out.`,
+        `<b>Doors and platforms</b> with Sine InOut so they don't jerk at the ends.`,
+        `<b>Custom animations</b>: feed the eased value into <code>CFrame:Lerp</code> or a Bézier curve.`],
+  gotchas:[`Back and Elastic leave the 0–1 range. If a value must stay inside (like transparency), clamp it or pick another style.`,
+           `The curves here follow the standard formulas. Roblox's built-in ones match closely, but use <code>GetValue</code> when you need exact matches.`]
+});
+
+demo({
+  id:'m-mod', title:'Wrapping with %', short:'index % n + 1', sig:'x % n  →  remainder, always 0 … n−1 for positive n', time:true,
+  view:{theta:0.0, phi:0.6, r:22, ty:0},
+  params:[R('count','Waypoints',3,10,1,6), R('speed','Speed',0.5,4,0.25,1.5,' pads/s'), S('dir','Direction',[['fwd','Forwards'],['back','Backwards']],'fwd')],
+  setup(K){
+    let pads = [], key = -1; const npc = K.part(V(1,1.6,1)), lab = K.label('','--accent','big'), nl = K.label('','--ink');
+    return {update(p,t){
+      const n = p.count, R0 = 7;
+      if (key !== n){ key = n; pads.forEach(x=>{ K.drop(x.m); x.l.el.remove(); x.l.show(false); }); pads = [];
+        for (let i=0;i<n;i++){ const a = i/n*Math.PI*2 - Math.PI/2, P = V(Math.cos(a)*R0, 0.1, Math.sin(a)*R0); const m = K.part(V(1.6,0.2,1.6),'--part',{front:false}); m.position.copy(P); pads.push({m, P, l:K.label(String(i+1),'--ink','big').at(P.clone().add(V(0,0.6,0)))}); } }
+      const steps = Math.floor(t*p.speed), frac = t*p.speed - steps;
+      const idxOf = s=>p.dir==='fwd' ? s % n : ((-s % n) + n) % n;
+      const from = idxOf(steps), to = idxOf(steps+1);
+      const A = pads[from].P, B = pads[to].P; const pos = A.clone().lerp(B, frac).setY(0.9);
+      npc.setCF(CF.lookAt(pos, pos.clone().add(B.clone().sub(A).setY(0))));
+      pads.forEach((x,i)=>x.m.tint(i===to ? '--accent' : '--part'));
+      lab.at(pos.clone().add(V(0,1.3,0))).text(`heading to ${to+1}`);
+      nl.at(V(0,0.3,0)).text(p.dir==='fwd' ? `${from+1} % ${n} + 1 = ${to+1}` : `(${from+1} - 2) % ${n} + 1 = ${to+1}`);
+      return {from:from+1, to:to+1, n};
+    }};
+  },
+  readout:(p,o)=>[['current', String(o.from)],['next', String(o.to),'acc'],['-1 % '+o.n, String(((-1 % o.n)+o.n)%o.n)]],
+  code:(p,o)=>`local waypoints = workspace.Path:GetChildren()   -- ${o.n} pads, numbered 1..${o.n}
+local index = 1
+
+while true do
+    humanoid:MoveTo(waypoints[index].Position)
+    humanoid.MoveToFinished:Wait()
+${p.dir==='fwd' ? `    index = index % #waypoints + 1           -- ${o.from} → ${o.to}, and ${o.n} → 1` : `    index = (index - 2) % #waypoints + 1     -- ${o.from} → ${o.to}, and 1 → ${o.n}`}
+end
+
+-- wrapping an angle into 0..360
+local heading = (heading + turn) % 360`,
+  body:`<p><code>%</code> gives the remainder after dividing. Counting up and taking <code>% n</code> goes 0, 1, 2 … n−1, 0, 1, 2 … forever, which is exactly what looping through a list needs. Lua lists start at 1, so add 1: <code>index % n + 1</code>.</p>
+<p>Going backwards works too, because in Luau <code>-1 % n</code> is <code>n - 1</code>, not −1. Switch direction and the NPC walks the loop the other way, wrapping from pad 1 back to the last pad.</p>`,
+  uses:[`<b>Patrol routes</b> that loop forever.`,
+        `<b>Cycling</b> through weapons, songs, colours or tutorial pages.`,
+        `<b>Wrapping angles and time</b>: headings into 0–360, a day-night clock into 0–24.`],
+  gotchas:[`<code>index % n + 1</code> needs index to start at 1. Starting at 0 skips the first item.`,
+           `<code>%</code> works on decimals too: <code>os.clock() % 2</code> repeats every 2 seconds.`]
+});
+
+demo({
+  id:'m-map', title:'Remapping ranges', short:'inverse lerp → lerp', sig:'t = (x - inMin) / (inMax - inMin)  ·  outMin + (outMax - outMin) * t',
+  view:{theta:0.0, phi:0.75, r:24, ty:0, tx:5},
+  params:[R('d','Player distance',0,20,0.25,8), R('near','Full volume within',1,8,0.5,4), R('far','Silent beyond',8,20,0.5,16)],
+  setup(K){
+    const sp = K.part(V(1.4,2,1.4),'--vb',{front:false}); sp.position.set(0,1,0); K.label('speaker','--vb','big').at(V(0,2.6,0));
+    let rn = null, rf = null, key = '';
+    const pl = K.part(V(1,2,1),'--va',{front:false}), meter = K.part(V(0.5,1,0.5),'--accent',{front:false}), frame = K.add(new THREE.LineSegments(G.edges, new THREE.LineBasicMaterial({color:C('--muted')})));
+    const lm = K.label('','--accent','big'), ln = K.label('near','--muted'), lf = K.label('far','--muted');
+    return {update(p){
+      const k = p.near+'|'+p.far; if (k !== key){ key = k; K.drop(rn); K.drop(rf); rn = K.ring(p.near,'--accent',{y:0.03}); rf = K.ring(p.far,'--muted',{y:0.03, dashed:true}); }
+      ln.at(V(p.near,0.3,0.6)); lf.at(V(p.far,0.3,0.6));
+      const t = clamp((p.d - p.near)/(p.far - p.near), 0, 1), vol = 1 - t;
+      pl.position.set(p.d,1,0); meter.resize(V(0.5, Math.max(0.01, vol*4), 0.5)); meter.position.set(p.d+1.2, vol*2, 0);
+      frame.scale.set(0.55,4,0.55); frame.position.set(p.d+1.2,2,0);
+      lm.at(V(p.d+1.2, 4.6, 0)).text(`Volume ${f(vol)}`);
+      return {t, vol, raw:(p.d - p.near)/(p.far - p.near)};
+    }};
+  },
+  readout:(p,o)=>[['inverse lerp (raw)', f(o.raw)],['clamped t', f(o.t)],['volume', f(o.vol),'acc']],
+  code:(p,o)=>`local NEAR, FAR = ${f(p.near)}, ${f(p.far)}
+
+local function inverseLerp(a, b, x)
+    return (x - a) / (b - a)              -- where x sits between a and b, as 0..1
+end
+
+local distance = (root.Position - speaker.Position).Magnitude   -- ${f(p.d)}
+local t = math.clamp(inverseLerp(NEAR, FAR, distance), 0, 1)    --> ${f(o.t)}
+sound.Volume = 1 - t                                             --> ${f(o.vol)}
+
+-- newer Luau has this built in (clamp it yourself):
+-- sound.Volume = math.clamp(math.map(distance, NEAR, FAR, 1, 0), 0, 1)`,
+  body:`<p>Lots of game feel comes from turning one range into another: distance into volume, speed into camera FOV, health into a bar's colour. It's two steps. An <b>inverse lerp</b> asks "how far between a and b is x?" and answers with 0 to 1. A normal lerp then turns that 0 to 1 into the output range.</p>
+<p>Walk the player away from the speaker. Inside the near ring the volume stays at 1, beyond the far ring it's 0, and in between it fades smoothly. The clamp is what holds the ends flat.</p>`,
+  uses:[`<b>Distance fades</b> for sound, fog, name tags and particle rates.`,
+        `<b>Speed to FOV</b>: <code>70 + 20 * inverseLerp(16, 60, speed)</code> for a sense of speed.`,
+        `<b>Health colours</b>: <code>Color3.new(1, 0, 0):Lerp(Color3.new(0, 1, 0), hp / maxHp)</code>.`],
+  gotchas:[`Without a clamp, values outside the input range go past the output range (volume 1.5, or −0.3).`,
+           `If a equals b, inverse lerp divides by zero. Make sure the two ends differ.`]
 });
 })();

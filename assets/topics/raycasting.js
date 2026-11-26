@@ -118,6 +118,109 @@ print(result and result.Instance.Name)   --> ${o.hit ? o.hit.mesh.name : 'nil'}$
 });
 
 demo({
+  id:'rc-los', title:'Line of sight: can the guard see me?', short:'range → cone → raycast', sig:'distance check  →  LookVector:Dot  →  workspace:Raycast',
+  view:{theta:0.0, phi:0.5, r:28, ty:0},
+  params:[R('yaw','Guard facing (+ = left)',-180,180,5,0,'°'), R('tx','Player X',-12,12,0.5,5), R('tz','Player Z',-12,12,0.5,-9), R('range','Sight range',4,16,0.5,14)],
+  setup(K){
+    const parts = world(K, [
+      {name:'Wall', size:V(6,3,0.6), pos:V(-3,1.5,-6), label:true},
+      {name:'Crate', size:V(2.5,2.5,2.5), pos:V(4,1.25,-4), rot:[0,20,0], label:true},
+      {name:'Pillar', size:V(1.5,3,1.5), pos:V(-2,1.5,5), label:true},
+    ]);
+    const guard = K.part(V(1.4,2,1)); guard.position.set(0,1,0);
+    const sec = K.sector('--accent',0.14); let ring = null, rr = -1;
+    const pl = K.part(V(1,2,1),'--ok',{front:false}), ray = K.line('--ok'), hitP = K.point('--bad',0.16), lab = K.label('','--ink','big');
+    const HALF = 50*D2R;
+    return {update(p){
+      if (rr !== p.range){ rr = p.range; K.drop(ring); ring = K.ring(p.range,'--muted',{dashed:true, y:0.03}); }
+      const yaw = p.yaw*D2R; guard.quaternion.setFromAxisAngle(UP, yaw); sec.setSector(V(), yaw, HALF, p.range);
+      const eye = V(0,1.8,0), T = V(p.tx,1.8,p.tz), off = T.clone().sub(eye), dist = off.length();
+      pl.position.set(p.tx,1,p.tz);
+      let fail = null, hit = null;
+      if (dist > p.range) fail = 'too far';
+      else if (lookOf(yaw).dot(off.clone().normalize()) < Math.cos(HALF)) fail = 'outside the cone';
+      else { hit = cast(eye, off, dist, parts); if (hit) fail = `blocked by ${hit.mesh.name}`; }
+      const seen = !fail; pl.tint(seen ? '--bad' : '--ok');
+      ray.set(eye, hit ? hit.pos : T); ray.material.color.copy(C(seen ? '--bad' : '--muted'));
+      hitP.visible = !!hit; if (hit) hitP.position.copy(hit.pos);
+      lab.at(V(p.tx,2.9,p.tz)).text(seen ? 'SPOTTED' : `hidden: ${fail}`); lab.color(seen ? '--bad' : '--ok');
+      return {dist, fail, seen, dot:lookOf(yaw).dot(off.clone().normalize())};
+    }};
+  },
+  readout:(p,o)=>[['1. distance', `${f(o.dist,1)} ≤ ${f(p.range)}?`, o.dist <= p.range ? 'ok' : 'bad'],['2. dot', `${f(o.dot)} ≥ ${f(Math.cos(50*D2R))}?`, o.dot >= Math.cos(50*D2R) ? 'ok' : 'bad'],['3. raycast', o.fail && o.fail.startsWith('blocked') ? o.fail : (o.fail ? 'skipped' : 'clear'), o.fail && o.fail.startsWith('blocked') ? 'bad' : (o.fail ? '' : 'ok')],['result', o.seen ? 'spotted' : 'hidden', o.seen ? 'bad' : 'ok']],
+  code:(p,o)=>`local RANGE, HALF_FOV = ${f(p.range)}, math.rad(50)
+
+local function canSee(guard, target)
+    local eye = guard.Head.Position
+    local offset = target.Head.Position - eye
+    if offset.Magnitude > RANGE then return false end                    -- 1. cheap
+    if guard.Head.CFrame.LookVector:Dot(offset.Unit) < math.cos(HALF_FOV) then
+        return false                                                     -- 2. cheap
+    end
+    params.FilterDescendantsInstances = { guard, target }               -- 3. costs more
+    return workspace:Raycast(eye, offset, params) == nil
+end
+-- right now: ${o.seen ? 'true' : 'false (' + o.fail + ')'}`,
+  body:`<p>Real stealth checks are three tests in a row, cheapest first. Is the player <b>close enough</b>? Are they <b>inside the vision cone</b> (a dot product)? Only then fire a <b>raycast</b> from the guard's eyes to see if a wall is in the way.</p>
+<p>Exclude both characters from the ray, then any hit means something else is blocking the view. Slide the player behind the crate or the wall and watch which test fails. Running the cheap tests first means most players never cost a raycast at all.</p>`,
+  uses:[`<b>Stealth games</b> and guard AI.`,
+        `<b>Turrets</b> that only fire with a clear shot.`,
+        `<b>Showing name tags or health bars</b> only for players you can actually see.`],
+  gotchas:[`Cast from eye to eye (heads), not from feet, or low walls block everything.`,
+           `Raycast the full offset, not <code>offset.Unit * RANGE</code>, so walls behind the player don't count.`]
+});
+
+demo({
+  id:'rc-mouse', title:'Mouse picking: rays from the camera', short:'camera:ViewportPointToRay', sig:'camera:ViewportPointToRay(x, y)  →  Ray (Origin, Direction)',
+  view:{theta:0.9, phi:0.95, r:30, ty:2, tz:2},
+  params:[R('u','Mouse X on screen',0,1,0.01,0.62), R('v','Mouse Y on screen',0,1,0.01,0.58)],
+  setup(K){
+    const parts = world(K, [
+      {name:'Crate', size:V(3,3,3), pos:V(-3,1.5,-3), rot:[0,25,0], label:true},
+      {name:'Tower', size:V(2,6,2), pos:V(4,3,-6), label:true},
+      {name:'Baseplate', size:V(60,1,60), pos:V(0,-0.5,0), visible:false},
+    ]);
+    const CAM = V(0,9,13), cf = CF.lookAt(CAM, V(0,0,-2)), D = 2.5, h = D*Math.tan(35*D2R), w = h*16/9;
+    const cam = new THREE.Group(); K.add(cam); cf.decompose(cam.position, cam.quaternion, V());
+    K.part(V(1.2,0.8,1),'--ink',{parent:cam});
+    const corners = [V(-w,h,-D),V(w,h,-D),V(w,-h,-D),V(-w,-h,-D)];
+    K.line('--accent',{parent:cam, max:5}).set(corners.concat([corners[0]]));
+    corners.forEach(c=>K.line('--muted',{parent:cam, opacity:0.5}).set(V(),c));
+    const scr = K.add(new THREE.Mesh(new THREE.PlaneGeometry(2*w,2*h), K.mat('--accent',{opacity:0.08, basic:true}))); scr.material.side = THREE.DoubleSide;
+    CF.mul(cf, CF.new(0,0,-D)).decompose(scr.position, scr.quaternion, V());
+    K.label('the screen','--accent').attach = {obj:cam, local:V(-w, h+0.4, -D)};
+    const sp = K.point('--accent',0.12), ray = K.line('--accent'), hp = K.point('--accent',0.22), nA = K.arrow('--y',{thick:0.035}), lh = K.label('','--accent','big');
+    return {update(p){
+      const local = V((p.u*2-1)*w, (1-2*p.v)*h, -D), S = CF.pt(cf, local), dir = S.clone().sub(CAM).normalize();
+      sp.position.copy(S); const hit = cast(S, dir, 200, parts);
+      ray.set(S, hit ? hit.pos : S.clone().addScaledVector(dir, 40)); hp.visible = !!hit; nA.visible = !!hit; lh.show(!!hit);
+      if (hit){ hp.position.copy(hit.pos); nA.set(hit.pos, hit.normal.clone().multiplyScalar(1.4)); lh.at(hit.pos.clone().add(V(0,0.8,0))).text(hit.mesh.name); }
+      return {hit, dir, px:Math.round(p.u*1920), py:Math.round(p.v*1080)};
+    }};
+  },
+  readout:(p,o)=>[['mouse (1920×1080)', `${o.px}, ${o.py}`],['ray.Direction', vs(o.dir)],['hit', o.hit ? `${o.hit.mesh.name} at ${vs(o.hit.pos)}` : 'nil','acc']],
+  code:(p,o)=>`local UserInputService = game:GetService("UserInputService")
+local camera = workspace.CurrentCamera
+
+local function mouseRaycast(params)
+    local mouse = UserInputService:GetMouseLocation()          -- (${o.px}, ${o.py})
+    local ray = camera:ViewportPointToRay(mouse.X, mouse.Y)   -- unit-length direction
+    return workspace:Raycast(ray.Origin, ray.Direction * 500, params)
+end
+
+local result = mouseRaycast(params)
+print(result and result.Instance.Name)   --> ${o.hit ? o.hit.mesh.name : 'nil'}`,
+  body:`<p>To find what's under the mouse, turn a point on the screen into a ray in the 3D world. <code>ViewportPointToRay</code> does it: it starts the ray at the camera, through that pixel on the screen, and returns a <b>unit</b> direction. Multiply it by a range and raycast as usual.</p>
+<p>The orange rectangle is the screen floating in front of the camera. Move the mouse sliders and the ray sweeps through the scene, hitting whatever is under that pixel.</p>`,
+  uses:[`<b>Placing buildings</b> where the player clicks, with your own RaycastParams (better than <code>mouse.Hit</code>).`,
+        `<b>Selecting units</b> in strategy and tycoon games.`,
+        `<b>Aiming</b> guns at the crosshair: use the centre of the screen.`],
+  gotchas:[`Pair <code>GetMouseLocation</code> with <code>ViewportPointToRay</code>. <code>ScreenPointToRay</code> expects coordinates without the top bar inset, so mixing them shifts the aim.`,
+           `The direction is only 1 stud long. Always multiply it.`,
+           `Run it on the client. The server has no mouse or camera; send the result in a RemoteEvent and check it there.`]
+});
+
+demo({
   id:'rc-surface', title:'Placing on slopes', short:'align to result.Normal', sig:'CFrame.lookAt(pos, pos + forward, result.Normal)',
   view:{theta:0.5, phi:0.95, r:24, ty:1},
   params:[R('x','Drop X',-10,10,0.25,-5), R('z','Drop Z',-9,9,0.25,0), R('yaw','Facing',-180,180,5,30,'°'), S('mode','Placement',[['align','Align to surface'],['upright','Always upright']],'align')],

@@ -210,4 +210,104 @@ explode(p2)   -- always lands exactly on the target`,
   gotchas:[`This motion ignores gravity and walls. For hits along the way, raycast from the last position to the new one each frame.`,
            `Moving by t gives uneven speed on lopsided arcs. Fine for short throws; use a distance table for long paths.`]
 });
+
+function catmull(p0,p1,p2,p3,t){
+  const t2=t*t, t3=t2*t;
+  return p1.clone().multiplyScalar(2).add(p2.clone().sub(p0).multiplyScalar(t))
+    .add(p0.clone().multiplyScalar(2).sub(p1.clone().multiplyScalar(5)).add(p2.clone().multiplyScalar(4)).sub(p3).multiplyScalar(t2))
+    .add(p1.clone().multiplyScalar(3).sub(p0).sub(p2.clone().multiplyScalar(3)).add(p3).multiplyScalar(t3)).multiplyScalar(0.5);
+}
+
+demo({
+  id:'bz-catmull', title:'Curves through points: Catmull-Rom', short:'passes through every waypoint', sig:'0.5 * (2p1 + (p2 − p0)t + (2p0 − 5p1 + 4p2 − p3)t² + (3p1 − p0 − 3p2 + p3)t³)', time:true,
+  view:{theta:0.2, phi:0.8, r:25, ty:1},
+  params:[R('mx','Move waypoint 3: X',-3,3,0.25,0), R('mz','Move waypoint 3: Z',-6,6,0.25,3), R('my','Move waypoint 3: height',0,6,0.25,1), T('loop','Closed loop',false)],
+  setup(K){
+    const base = [V(-9,1,2), V(-4.5,3,-4), V(0,1,3), V(4.5,4,-3), V(9,1,2)];
+    const dots = base.map(()=>K.point('--va',0.24)), labs = base.map((_,i)=>K.label(String(i+1),'--va','big'));
+    const poly = K.line('--muted',{dashed:true, max:6}), curve = K.line('--accent',{max:6*40+1}), cart = K.part(V(1,0.7,1.6));
+    return {update(p,t){
+      const P = base.map(q=>q.clone()); P[2] = V(p.mx, p.my, p.mz);
+      P.forEach((q,i)=>{ dots[i].position.copy(q); labs[i].at(q.clone().add(V(0,0.6,0))); });
+      poly.set(p.loop ? P.concat([P[0]]) : P);
+      const n = P.length, segs = p.loop ? n : n-1, at = i=>p.loop ? P[(i+n)%n] : P[Math.max(0, Math.min(n-1, i))];
+      const pts = []; for (let s=0;s<segs;s++) for (let k=0;k<(s===segs-1?41:40);k++) pts.push(catmull(at(s-1),at(s),at(s+1),at(s+2),k/40));
+      curve.set(pts);
+      const u = (t*0.12) % 1, fs = u*segs, s = Math.floor(fs), lt = fs - s;
+      const pos = catmull(at(s-1),at(s),at(s+1),at(s+2),lt), ahead = catmull(at(s-1),at(s),at(s+1),at(s+2),Math.min(1,lt+0.02));
+      if (lt > 0.98) ahead.copy(catmull(at(s),at(s+1),at(s+2),at(s+3),0.02));
+      cart.setCF(CF.lookAt(pos, ahead.distanceTo(pos) > 1e-4 ? ahead : pos.clone().add(V(0,0,-1))));
+      return {P, segs};
+    }};
+  },
+  readout:(p,o)=>[['waypoints', String(o.P.length)],['segments', String(o.segs),'acc'],['waypoint 3', vs(o.P[2])]],
+  code:(p,o)=>`local function catmullRom(p0, p1, p2, p3, t)
+    return 0.5 * ((2 * p1) + (p2 - p0) * t
+        + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t ^ 2
+        + (3 * p1 - p0 - 3 * p2 + p3) * t ^ 3)
+end
+
+local points = { ${o.P.map(q=>`Vector3.new(${f(q.x)}, ${f(q.y)}, ${f(q.z)})`).join(',\n                 ')} }
+
+-- position on segment i (from points[i] to points[i + 1])
+local function sample(i, t)
+    local n = #points
+    local function at(k)
+${p.loop ? `        return points[(k - 1) % n + 1]          -- wrap around: closed loop` : `        return points[math.clamp(k, 1, n)]     -- repeat the ends: open path`}
+    end
+    return catmullRom(at(i - 1), at(i), at(i + 1), at(i + 2), t)
+end`,
+  body:`<p>Bézier curves bend <i>toward</i> their control points without touching them. Often you want the opposite: a smooth path that goes <b>through</b> every waypoint you place. A Catmull-Rom spline does that. Each section between two waypoints uses the points on either side to decide which way to curve.</p>
+<p>Drag waypoint 3 around and watch only the nearby sections change. Turn on the closed loop to join the last point back to the first, for laps and patrols.</p>`,
+  uses:[`<b>Patrol and race routes</b> drawn by dropping parts in a folder.`,
+        `<b>Camera paths</b> through a list of viewpoints for intros and cutscenes.`,
+        `<b>Smoothing</b> a jagged pathfinding result into a natural walking line.`],
+  gotchas:[`An open path needs extra points past the ends. Repeating the first and last point, as in the code, is the usual fix.`,
+           `Like Bézier, equal steps of t aren't equal distances. Use a distance table for constant speed.`]
+});
+
+demo({
+  id:'bz-chain', title:'Chaining curves smoothly', short:'mirror the handles', sig:'outHandle = joint + (joint − inHandle)',
+  view:{theta:0.0, phi:0.55, r:24, ty:1}, time:true,
+  params:[T('mirror','Keep handles in line',true), R('ang','Handle direction',-80,80,5,30,'°'), R('lin','In-handle length',1,6,0.25,3.5), R('lout','Out-handle length',1,6,0.25,3.5), R('kink','Out-handle turn (when not in line)',-120,120,5,70,'°')],
+  setup(K){
+    const A0 = V(-10,1,0), A1 = V(-7,1,-6), B2 = V(7,1,6), B3 = V(10,1,0), J = V(0,1,0);
+    [A0,B3].forEach(q=>K.point('--va',0.22).position.copy(q)); K.point('--ink',0.26).position.copy(J);
+    K.point('--muted',0.16).position.copy(A1); K.point('--muted',0.16).position.copy(B2);
+    const h1 = K.point('--vb',0.2), h2 = K.point('--vb',0.2), hl = K.line('--vb',{max:3}), cA = K.line('--accent',{max:61}), cB = K.line('--va',{max:61});
+    const sideA = K.line('--muted',{dashed:true}), sideB = K.line('--muted',{dashed:true});
+    const cart = K.part(V(1,0.7,1.6)); K.label('joint','--ink','big').at(J.clone().add(V(0,0.7,0)));
+    const li = K.label('in handle','--vb'), lo = K.label('out handle','--vb');
+    return {update(p,t){
+      const d = lookOf(-Math.PI/2 + p.ang*D2R), H1 = J.clone().addScaledVector(d, -p.lin);
+      const d2 = p.mirror ? d : lookOf(-Math.PI/2 + (p.ang + p.kink)*D2R), H2 = J.clone().addScaledVector(d2, p.lout);
+      h1.position.copy(H1); h2.position.copy(H2); hl.set(H1, J, H2); sideA.set(A0, A1); sideB.set(B2, B3);
+      li.at(H1.clone().add(V(0,0.5,0))); lo.at(H2.clone().add(V(0,0.5,0)));
+      const pa=[], pb=[]; for (let i=0;i<=60;i++){ pa.push(cubic(A0,A1,H1,J,i/60)); pb.push(cubic(J,H2,B2,B3,i/60)); } cA.set(pa); cB.set(pb);
+      const u = (t*0.15) % 2, onA = u < 1, tt = onA ? u : u-1;
+      const pos = onA ? cubic(A0,A1,H1,J,tt) : cubic(J,H2,B2,B3,tt), tan = onA ? cubicTan(A0,A1,H1,J,tt) : cubicTan(J,H2,B2,B3,tt);
+      cart.setCF(CF.lookAt(pos.clone().setY(1.4), pos.clone().setY(1.4).add(tan)));
+      const tEnd = cubicTan(A0,A1,H1,J,1).normalize(), tStart = cubicTan(J,H2,B2,B3,0).normalize();
+      return {snap: Math.acos(Math.max(-1,Math.min(1,tEnd.dot(tStart))))/D2R, H1, H2};
+    }};
+  },
+  readout:(p,o)=>[['direction jump at joint', f(o.snap,1)+'°', o.snap < 0.5 ? 'ok' : 'bad'],['in handle', vs(o.H1)],['out handle', vs(o.H2),'acc']],
+  code:(p,o)=>`-- segment A: a0, a1, inHandle, joint      segment B: joint, outHandle, b2, b3
+local inHandle = ${`Vector3.new(${f(o.H1.x)}, ${f(o.H1.y)}, ${f(o.H1.z)})`}
+${p.mirror ? `local outHandle = joint + (joint - inHandle).Unit * ${f(p.lout)}   -- same line, any length` : `local outHandle = ${`Vector3.new(${f(o.H2.x)}, ${f(o.H2.y)}, ${f(o.H2.z)})`}   -- not in line: a kink of ${f(o.snap,0)}°`}
+
+local function pathPoint(u)   -- u from 0 to 2 across both segments
+    if u < 1 then
+        return cubicBezier(a0, a1, inHandle, joint, u)
+    end
+    return cubicBezier(joint, outHandle, b2, b3, u - 1)
+end`,
+  body:`<p>Long paths are made from several curves joined end to end. Where two meet, the curve heading in and the curve heading out each have a handle at the joint. If those handles point in <b>opposite directions along one line</b>, the path flows straight through. If not, there's a corner.</p>
+<p>Untick "keep handles in line" and turn the out-handle: the cart snaps round at the joint, and the readout shows by how much. Tick it again and the corner disappears, even when the two handles have different lengths.</p>`,
+  uses:[`<b>Roller coasters and tracks</b> built from many segments.`,
+        `<b>Road and river tools</b> in plugins or building games.`,
+        `<b>Long camera moves</b> without a jolt between shots.`],
+  gotchas:[`Equal handle lengths also keep the speed smooth across the joint. Different lengths keep the direction but change the pace.`,
+           `If you want a sharp corner on purpose, like a hairpin, break the line deliberately.`]
+});
 })();

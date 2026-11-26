@@ -1,6 +1,6 @@
 (function(){
 "use strict";
-const {V, f, v3, vs, R, T} = Lab;
+const {V, f, v3, vs, R, S, T} = Lab;
 const demo = Lab.subject({
   id:'vector3', title:'Vector3 basics', glyph:'vector',
   blurb:'Positions, offsets, distance and direction. The building blocks every other topic uses.'
@@ -72,6 +72,38 @@ local distance = offset.Magnitude   --> ${f(o.dist)}
         `<b>NPC chasing.</b> Every frame, the chase direction is <code>player.Position - npc.Position</code>.`],
   gotchas:[`<code>A - B</code> points the opposite way from <code>B - A</code>. If something flies backwards, swap the order.`,
            `Adding two positions together rarely means anything. You add a position and an offset.`]
+});
+
+demo({
+  id:'vec-scale', title:'Scaling and flattening', short:'v * n,  v * Vector3.new(1, 0, 1)', sig:'v * number  ·  v * Vector3  (per component)  ·  v / number',
+  view:{theta:0.8, phi:1.0, r:17, ty:1.5},
+  params:[R('x','X',-6,6,0.5,4), R('y','Y',0,6,0.5,3), R('z','Z',-6,6,0.5,-2), R('s','Scale',-2,3,0.25,1.5)],
+  setup(K){
+    const a = K.arrow('--va',{thick:0.045}), b = K.arrow('--accent',{thick:0.07}), fl = K.arrow('--vb',{thick:0.05}), drop = K.line('--muted',{dashed:true});
+    const la = K.label('v','--va'), lb = K.label('','--accent','big'), lf = K.label('v * (1, 0, 1)','--vb');
+    return {update(p){
+      const v = V(p.x,p.y,p.z), sv = v.clone().multiplyScalar(p.s), flat = V(p.x,0,p.z);
+      a.set(V(),v); b.set(V(),sv); fl.set(V(),flat); drop.set(v, flat);
+      la.at(v.clone().add(V(0,0.45,0))); lb.at(sv.clone().add(V(0,0.5,0))).text(`v * ${f(p.s)}`); lf.at(flat.clone().add(V(0,-0.45,0)));
+      return {v, sv, flat};
+    }};
+  },
+  readout:(p,o)=>[['v.Magnitude', f(o.v.length())],['(v * '+f(p.s)+').Magnitude', f(o.sv.length()),'acc'],['flat', vs(o.flat)]],
+  code:(p,o)=>`local v = ${v3(o.v)}
+
+local scaled = v * ${f(p.s)}                  --> ${vs(o.sv)}
+local half = v / 2                     --> ${vs(o.v.clone().multiplyScalar(0.5))}
+local flat = v * Vector3.new(1, 0, 1)  --> ${vs(o.flat)}  (height removed)
+
+-- camera-relative movement that doesn't point into the floor:
+local forward = (camera.CFrame.LookVector * Vector3.new(1, 0, 1)).Unit`,
+  body:`<p>Multiplying a vector by a number scales its length and keeps its direction. Times 2 doubles it, times 0.5 halves it, and a <b>negative</b> number flips it to point the other way. Drag the scale below zero and watch the orange arrow swing round.</p>
+<p>Multiplying by another <code>Vector3</code> works <b>component by component</b>: X times X, Y times Y, Z times Z. Multiplying by <code>(1, 0, 1)</code> keeps X and Z and zeroes Y. That flattens any vector onto the ground (the pink arrow).</p>`,
+  uses:[`<b>Knockback strength</b>: <code>direction * force</code>, bigger for heavier hits.`,
+        `<b>Camera-relative WASD</b>: flatten the camera's LookVector so players don't walk into the floor when looking down.`,
+        `<b>Growing and shrinking parts</b>: <code>part.Size = baseSize * 1.5</code>.`],
+  gotchas:[`<code>a * b</code> with two vectors is per component, not the dot product. Use <code>a:Dot(b)</code> for that.`,
+           `Flattening a vector that points straight up or down gives <code>Vector3.zero</code>, and its <code>.Unit</code> is NaN. Check the magnitude first.`]
 });
 
 demo({
@@ -186,5 +218,96 @@ end)`,
   gotchas:[`Lerping by a fixed amount like 0.1 every frame runs faster at high frame rates. Use <code>1 - math.exp(-speed * dt)</code> as the alpha.`,
            `Alpha outside 0 to 1 still works and goes past the ends. Clamp it if that matters.`,
            `<code>Vector3:Lerp</code> moves in a straight line only. For position and rotation together, use <code>CFrame:Lerp</code>.`]
+});
+
+demo({
+  id:'vec-moveto', title:'Move toward without overshooting', short:'math.min(speed * dt, distance)', sig:'current + offset.Unit * math.min(speed * dt, offset.Magnitude)', time:true,
+  view:{theta:0.2, phi:0.75, r:22, ty:0},
+  params:[R('speed','Speed',2,60,1,30,' studs/s'), S('fps','Frame rate',[['60','60 FPS'],['20','20 FPS'],['8','8 FPS (lag spike)']],'8'), R('tx','Goal X',-8,10,0.5,6), R('tz','Goal Z',-8,8,0.5,-3), T('naive','Show the naive version',true)],
+  setup(K){
+    const S0 = V(-8,0.6,4), goal = K.ring(0.7,'--vb',{y:0.04}), good = K.part(V(1,1.2,1),'--accent',{front:false}), bad = K.part(V(1,1.2,1),'--bad',{front:false, opacity:0.75});
+    K.point('--muted',0.15).position.copy(S0); K.label('start','--muted').at(S0.clone().add(V(0,-0.5,0)));
+    const lg = K.label('goal','--vb'), l1 = K.label('math.min version','--accent'), l2 = K.label('naive','--bad');
+    return {update(p,t){
+      const G0 = V(p.tx,0.6,p.tz), step = 1/(+p.fps), tau = t % 3, n = Math.floor(tau/step);
+      const gp = S0.clone(), bp = S0.clone(); let bounce = 0;
+      for (let i=0;i<n;i++){
+        const og = G0.clone().sub(gp), dg = og.length(), sg = p.speed*step; if (dg <= sg) gp.copy(G0); else gp.addScaledVector(og, sg/dg);
+        const ob = G0.clone().sub(bp), db = ob.length(); if (db > 1e-6){ const before = db; bp.addScaledVector(ob, p.speed*step/db); if (bp.distanceTo(G0) > 1e-6 && G0.clone().sub(bp).dot(ob) < 0) bounce = before; }
+      }
+      goal.position.set(G0.x,0,G0.z); lg.at(G0.clone().add(V(0,-0.6,0)));
+      good.position.copy(gp); bad.position.copy(bp); bad.visible = p.naive; l2.show(p.naive);
+      l1.at(gp.clone().add(V(0,1.1,0))); l2.at(bp.clone().add(V(0,-0.9,0)));
+      return {gapG:gp.distanceTo(G0), gapB:bp.distanceTo(G0), stepLen:p.speed*step};
+    }};
+  },
+  readout:(p,o)=>[['step per frame', f(o.stepLen)+' studs'],['math.min version', o.gapG < 1e-3 ? 'arrived' : f(o.gapG)+' to go','acc'], ...(p.naive?[['naive version', o.gapB < 1e-3 ? 'arrived' : `${f(o.gapB)} off (overshooting)`, o.gapB < 1e-3 ? '' : 'bad']]:[])],
+  code:(p,o)=>`local function moveTowards(current, goal, maxStep)
+    local offset = goal - current
+    local distance = offset.Magnitude
+    if distance <= maxStep then
+        return goal                     -- close enough: land exactly on it
+    end
+    return current + offset / distance * maxStep
+end
+
+RunService.Heartbeat:Connect(function(dt)
+    npc.Position = moveTowards(npc.Position, goal, ${f(p.speed)} * dt)
+end)
+
+-- naive: npc.Position += (goal - npc.Position).Unit * ${f(p.speed)} * dt
+-- at ${p.fps} FPS each step is ${f(o.stepLen)} studs, so it jumps past the goal and bounces`,
+  body:`<p>Moving at a fixed speed toward a goal looks simple: add <code>direction * speed * dt</code> every frame. But on the last frame the step is usually longer than the distance left, so the object jumps <b>past</b> the goal. Next frame it turns round and jumps back. It never settles.</p>
+<p>The fix is to cap the step at the remaining distance with <code>math.min</code>, or to snap to the goal once you're within one step. Drop the frame rate to 8 FPS and raise the speed: the red block jitters around the ring, the orange one lands and stops.</p>`,
+  uses:[`<b>NPC walking and patrols</b> without Humanoid:MoveTo.`,
+        `<b>Moving platforms and elevators</b> that must stop exactly at each floor.`,
+        `<b>UI bars</b> that count toward a value at a fixed rate.`],
+  gotchas:[`Comparing positions with <code>==</code> almost never works with decimals. Check <code>distance &lt;= step</code> or use <code>a:FuzzyEq(b, 0.01)</code>.`,
+           `Low frame rates make steps longer, so bugs like this show up on slow phones first.`]
+});
+
+demo({
+  id:'vec-bounds', title:'Bounding boxes: Min and Max', short:'lo:Min(p), hi:Max(p)', sig:'a:Min(b)  ·  a:Max(b)  →  per-component smallest / largest',
+  view:{theta:0.6, phi:0.85, r:24, ty:1},
+  params:[R('seed','Points (seed)',1,40,1,6), R('tx','Test point X',-9,9,0.5,2), R('ty','Test point Y',0,6,0.5,1.5), R('tz','Test point Z',-9,9,0.5,1)],
+  setup(K){
+    const box = K.add(new Lab.THREE.LineSegments(Lab.G.edges, new Lab.THREE.LineBasicMaterial({color:Lab.C('--accent')})));
+    const pts = Array.from({length:6}, ()=>K.point('--va',0.2)), lo = K.point('--x',0.16), hi = K.point('--y',0.16), tp = K.point('--ok',0.26);
+    const llo = K.label('lo','--x','big'), lhi = K.label('hi','--y','big'), lt = K.label('','--ink');
+    return {update(p){
+      const rng = Lab.mulberry32(p.seed*131); const P = pts.map(()=>V((rng()*2-1)*7, rng()*5+0.3, (rng()*2-1)*6));
+      let a = P[0].clone(), b = P[0].clone(); P.forEach((q,i)=>{ pts[i].position.copy(q); a.min(q); b.max(q); });
+      box.scale.copy(b.clone().sub(a)); box.position.copy(a.clone().add(b).multiplyScalar(0.5));
+      lo.position.copy(a); hi.position.copy(b); llo.at(a.clone().add(V(0,-0.5,0))); lhi.at(b.clone().add(V(0,0.5,0)));
+      const T = V(p.tx,p.ty,p.tz), inside = T.x>=a.x && T.x<=b.x && T.y>=a.y && T.y<=b.y && T.z>=a.z && T.z<=b.z;
+      tp.position.copy(T); tp.material.color.copy(Lab.C(inside?'--ok':'--bad')); lt.at(T.clone().add(V(0,0.55,0))).text(inside?'inside':'outside');
+      return {a, b, inside};
+    }};
+  },
+  readout:(p,o)=>[['lo', vs(o.a)],['hi', vs(o.b)],['size', vs(o.b.clone().sub(o.a)),'acc'],['test point', o.inside?'inside':'outside', o.inside?'ok':'bad']],
+  code:(p,o)=>`local lo, hi = points[1], points[1]
+for _, point in points do
+    lo = lo:Min(point)     -- smallest X, Y and Z seen so far
+    hi = hi:Max(point)     -- largest X, Y and Z seen so far
+end
+--> lo ${vs(o.a)}, hi ${vs(o.b)}
+
+local size = hi - lo
+local center = (lo + hi) / 2
+zone.Size, zone.Position = size, center       -- a part that wraps every point
+
+local function isInside(p)
+    return p.X >= lo.X and p.X <= hi.X
+       and p.Y >= lo.Y and p.Y <= hi.Y
+       and p.Z >= lo.Z and p.Z <= hi.Z
+end
+print(isInside(${v3(V(p.tx,p.ty,p.tz))}))   --> ${o.inside}`,
+  body:`<p><code>a:Min(b)</code> takes the smaller X, the smaller Y and the smaller Z of two vectors, each on its own. <code>Max</code> takes the larger ones. Run them over a list of points and you end up with two corners, <b>lo</b> and <b>hi</b>, of the smallest box that holds them all.</p>
+<p>From the corners you get the box's size (<code>hi - lo</code>) and centre (<code>(lo + hi) / 2</code>), and checking whether a point is inside is six comparisons. Change the seed to scatter new points, and move the test point in and out.</p>`,
+  uses:[`<b>Zones from markers</b>: build a region part that wraps a set of spawn points.`,
+        `<b>Camera framing</b>: fit the camera to show every player in a party.`,
+        `<b>Quick inside checks</b> for areas aligned to the world axes.`],
+  gotchas:[`This box is always lined up with the world axes. For a rotated area, convert the point with <code>zone.CFrame:PointToObjectSpace(p)</code> and compare against half the size.`,
+           `For models, <code>model:GetBoundingBox()</code> returns a CFrame and a size for you.`]
 });
 })();

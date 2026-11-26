@@ -197,4 +197,111 @@ packed = bit32.replace(packed, 255, 0, 8)   -- blue becomes 255`,
   gotchas:[`Each value must fit its width. A 9-bit value in an 8-bit field spills into its neighbour, so clamp or mask first.`,
            `For bigger or many-field data, the <code>buffer</code> library (<code>buffer.writeu8</code>, <code>buffer.readu16</code> and so on) is easier and not limited to 32 bits.`]
 });
+
+demo({
+  id:'bw-slots', title:'Finding a free slot', short:'bit32.countrz', sig:'bit32.countrz(bit32.bnot(used))  →  index of the first empty slot',
+  view:{theta:0, phi:1.25, r:19, ty:1.5}, env:'grid',
+  params:[R('fill','Slots in use',0,16,1,9), R('seed','Which slots (seed)',1,60,1,4)],
+  setup(K){
+    const row = bitRow(K, 16, 1, {gap:1.05, size:0.8, index:true});
+    const mark = K.arrow('--ok',{thick:0.06}), lm = K.label('','--ok','big');
+    return {update(p){
+      const rng = Lab.mulberry32(p.seed*97), order = [...Array(16).keys()];
+      for (let i=15;i>0;i--){ const j=Math.floor(rng()*(i+1)); [order[i],order[j]]=[order[j],order[i]]; }
+      let used = 0; for (let i=0;i<p.fill;i++) used |= 1 << order[i];
+      const free = (~used) & 0xFFFF; let slot = -1; if (free){ slot = 0; while (!((free>>slot)&1)) slot++; }
+      row.set(used); row.valL.text(String(used));
+      mark.visible = slot >= 0; lm.show(true);
+      if (slot >= 0){ const x = row.x(slot); mark.set(V(x,3.1,0), V(0,-1.4,0)); lm.at(V(x,3.6,0)).text(`first free: bit ${slot}`); } else lm.at(V(0,3.2,0)).text('inventory full');
+      return {used, slot};
+    }};
+  },
+  readout:(p,o)=>[['used', `${o.used} (0b${grouped(o.used,16)})`],['first free bit', o.slot >= 0 ? String(o.slot) : 'none (full)', o.slot >= 0 ? 'acc' : 'bad'],['slot number (1-based)', o.slot >= 0 ? String(o.slot+1) : '-']],
+  code:(p,o)=>`local SLOTS = 16
+local used = ${o.used}   -- one bit per slot: 1 = taken
+
+local function firstFreeSlot()
+    local free = bit32.band(bit32.bnot(used), 2 ^ SLOTS - 1)   -- 1 = empty
+    if free == 0 then
+        return nil                       -- inventory full
+    end
+    return bit32.countrz(free)           -- zeros on the right = index of lowest free slot
+end
+
+local slot = firstFreeSlot()            --> ${o.slot >= 0 ? o.slot : 'nil'}
+if slot then
+    used = bit32.bor(used, bit32.lshift(1, slot))      -- take it
+end
+-- later, free it again:
+-- used = bit32.band(used, bit32.bnot(bit32.lshift(1, slot)))`,
+  body:`<p>Store which slots are taken as bits in one number. To find the first empty slot, flip the bits with <code>bnot</code> so empty slots become 1s, then count the zeros on the right with <code>countrz</code>. That count is the index of the lowest free slot, found in one call instead of a loop.</p>
+<p>Change how many slots are in use and which ones. The green arrow always lands on the right-most standing-down cube.</p>`,
+  uses:[`<b>Inventory and hotbar slots.</b>`,
+        `<b>Seat and spawn-pad assignment</b> in lobbies and vehicles.`,
+        `<b>ID pools</b>: reuse the lowest free ID for pooled projectiles or effects.`],
+  gotchas:[`<code>bnot</code> flips all 32 bits, so mask it down to your slot count, or slots past the end look free.`,
+           `<code>countrz(0)</code> returns 32. Check for a full inventory first.`]
+});
+
+const TILE_MAPS = {
+  plus:['.........','....#....','....#....','....#....','#########','....#....','....#....','....#....','.........'],
+  loop:['.........','.#######.','.#.....#.','.#..####.','.#..#..#.','.####..#.','....#..#.','....####.','.........'],
+  maze:['#.#####..','#.#...#..','###.#.###','..#.#...#','.##.#####','.#..#...#','.####.#.#','....#.#.#','....###.#'],
+};
+demo({
+  id:'bw-autotile', title:'Autotiling with neighbour masks', short:'N=1 E=2 S=4 W=8', sig:'mask = N·1 + E·2 + S·4 + W·8   →   tiles[mask]',
+  view:{theta:0, phi:0.65, r:24, ty:0}, env:'grid',
+  params:[S('map','Layout',[['loop','Loop'],['plus','Crossroads'],['maze','Maze'],['random','Random']],'loop'), R('seed','Random seed',1,99,1,8)],
+  setup(K){
+    const N = 9, CS = 2, grp = K.add(new THREE.Group()); const pool = Array.from({length:N*N}, ()=>K.label('','--ink','tiny'));
+    const road = K.mat('--part'), mid = K.mat('--accent');
+    let key = '';
+    return {update(p){
+      const k = p.map+'|'+(p.map==='random'?p.seed:''); let info = null;
+      if (k !== key){ key = k;
+        while (grp.children.length) grp.remove(grp.children[0]);
+        let rows;
+        if (p.map === 'random'){ const rng = Lab.mulberry32(p.seed*211); rows = Array.from({length:N}, ()=>Array.from({length:N}, ()=>rng()<0.5?'#':'.').join('')); }
+        else rows = TILE_MAPS[p.map];
+        const is = (x,z)=>x>=0&&z>=0&&x<N&&z<N&&rows[z][x]==='#';
+        const counts = {}; let tiles = 0;
+        for (let z=0;z<N;z++) for (let x=0;x<N;x++){
+          const L = pool[z*N+x]; if (!is(x,z)){ L.show(false); continue; }
+          const mask = (is(x,z-1)?1:0) | (is(x+1,z)?2:0) | (is(x,z+1)?4:0) | (is(x-1,z)?8:0); counts[mask] = 1; tiles++;
+          const cx = (x-(N-1)/2)*CS, cz = (z-(N-1)/2)*CS;
+          const c = new THREE.Mesh(G.box, mid); c.scale.set(0.8,0.3,0.8); c.position.set(cx,0.15,cz); grp.add(c);
+          [[1,0,-1],[2,1,0],[4,0,1],[8,-1,0]].forEach(([bit,dx,dz])=>{ if (!(mask & bit)) return; const a = new THREE.Mesh(G.box, road); a.scale.set(dx?0.6:0.8, 0.2, dz?0.6:0.8); a.position.set(cx+dx*0.7, 0.1, cz+dz*0.7); grp.add(a); });
+          L.show(true).at(V(cx,0.75,cz)).text(String(mask));
+        }
+        info = {tiles, kinds:Object.keys(counts).length}; this._info = info;
+      }
+      return this._info;
+    }};
+  },
+  readout:(p,o)=>[['road tiles', String(o.tiles)],['different tile shapes used', `${o.kinds} of 16`,'acc']],
+  code:(p,o)=>`local N, E, S, W = 1, 2, 4, 8
+
+local function isRoad(x, z)
+    return grid[x] and grid[x][z] == "road"
+end
+
+local function maskAt(x, z)
+    local mask = 0
+    if isRoad(x, z - 1) then mask = bit32.bor(mask, N) end
+    if isRoad(x + 1, z) then mask = bit32.bor(mask, E) end
+    if isRoad(x, z + 1) then mask = bit32.bor(mask, S) end
+    if isRoad(x - 1, z) then mask = bit32.bor(mask, W) end
+    return mask                     -- 0..15, one number per tile shape
+end
+
+-- TILES[0..15] holds a model for each shape: 5 = straight N–S, 15 = crossroads...
+local piece = TILES[maskAt(x, z)]:Clone()`,
+  body:`<p>Each road tile looks at its four neighbours and gives each direction a bit: north 1, east 2, south 4, west 8. Add up the directions that have road and you get a number from 0 to 15, and every number is a different tile shape. Straight north–south is 1 + 4 = 5, a T-junction missing west is 7, a crossroads is 15.</p>
+<p>The number on each tile is its mask. Switch layouts and every piece picks the right shape by itself, so a building system never needs a hand-placed corner piece.</p>`,
+  uses:[`<b>Roads, rails, pipes and wires</b> in building and tycoon games.`,
+        `<b>Walls and fences</b> that connect to their neighbours.`,
+        `<b>Dungeon and terrain generation</b> on grids.`],
+  gotchas:[`When a tile is placed or removed, recompute the masks of its four neighbours too, not just the tile itself.`,
+           `To include diagonals (for smooth terrain edges), use 8 bits instead of 4. That gives 256 cases, often trimmed down to 47 real shapes.`]
+});
 })();

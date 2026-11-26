@@ -23,15 +23,49 @@ const subjById = id=>subjects.find(s=>s.id===id);
 /* ---------- home ---------- */
 $('subjects').innerHTML = subjects.map(s=>`<a class="subj-card" href="#${s.id}">${glyph(s.glyph)}<h3>${esc(s.title)}</h3><p>${esc(s.blurb)}</p><span class="count">${s.demos.length} topics</span></a>`).join('');
 
-let finderFilter = 'all';
+let finderFilter = 'all', finderQuery = '';
+const FINDER = Lab.FINDER.filter(([, , id])=>demoById(id));
 function renderFinder(){
   const chips = [['all','All']].concat(subjects.map(s=>[s.id, s.title]));
   $('finderFilter').innerHTML = chips.map(([id,t])=>`<button type="button" class="chip" data-f="${id}" aria-pressed="${finderFilter===id}">${esc(t)}</button>`).join('');
-  $('finder').innerHTML = Lab.FINDER.filter(([, , id])=>finderFilter==='all' || demoById(id).subject===finderFilter)
-    .map(([t,c,id])=>`<a href="#${id}"><b>${esc(t)}</b><code>${esc(c)}</code><small>${esc(subjById(demoById(id).subject).title)} › ${esc(demoById(id).title)}</small></a>`).join('');
+  const words = finderQuery.toLowerCase().split(/\s+/).filter(Boolean);
+  const rows = FINDER.filter(([t,c,id])=>{
+    const d = demoById(id), s = subjById(d.subject);
+    if (finderFilter !== 'all' && d.subject !== finderFilter) return false;
+    const hay = `${t} ${c} ${d.title} ${d.short} ${s.title}`.toLowerCase();
+    return words.every(w=>hay.includes(w));
+  });
+  $('finder').innerHTML = rows.map(([t,c,id])=>`<a href="#${id}"><b>${esc(t)}</b><code>${esc(c)}</code><small>${esc(subjById(demoById(id).subject).title)} › ${esc(demoById(id).title)}</small></a>`).join('');
+  $('finderEmpty').hidden = rows.length > 0;
 }
 $('finderFilter').addEventListener('click', e=>{ const b = e.target.closest('button'); if (!b) return; finderFilter = b.dataset.f; renderFinder(); });
+$('finderSearch').addEventListener('input', e=>{ finderQuery = e.target.value; renderFinder(); });
 renderFinder();
+
+/* ---------- sidebar ---------- */
+const chev = `<svg class="chev" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2 L8 6 L4 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+$('srailFull').innerHTML = subjects.map(s=>`<details class="sgroup" data-s="${s.id}"><summary>${glyph(s.glyph,22)}<span>${esc(s.title)}</span><span class="n">${s.demos.length}</span>${chev}</summary><div class="tlist">${s.demos.map(d=>`<a href="#${d.id}" data-d="${d.id}">${esc(d.title)}<small>${esc(d.short)}</small></a>`).join('')}</div></details>`).join('');
+$('srailMini').innerHTML = subjects.map(s=>`<a href="#${s.id}" data-s="${s.id}" title="${esc(s.title)}" aria-label="${esc(s.title)}">${glyph(s.glyph,24)}</a>`).join('');
+const narrow = window.matchMedia('(max-width: 900px)');
+const store = {get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }, set(k,v){ try { localStorage.setItem(k,v); } catch(e){} }};
+function setCollapsed(c){
+  document.body.classList.toggle('rail-collapsed', c); store.set('rml-rail-collapsed', c ? '1' : '0');
+  const b = $('railToggle'); b.setAttribute('aria-label', c ? 'Expand sidebar' : 'Collapse sidebar'); b.title = b.getAttribute('aria-label');
+  b.querySelector('.collapse-ico').style.rotate = c ? '180deg' : '';
+}
+setCollapsed(store.get('rml-rail-collapsed') === '1');
+const closeDrawer = ()=>document.body.classList.remove('rail-open');
+$('railToggle').addEventListener('click', ()=>{ if (narrow.matches) closeDrawer(); else setCollapsed(!document.body.classList.contains('rail-collapsed')); });
+$('drawerBtn').addEventListener('click', ()=>document.body.classList.add('rail-open'));
+$('railBackdrop').addEventListener('click', closeDrawer);
+document.addEventListener('keydown', e=>{ if (e.key === 'Escape') closeDrawer(); });
+function updateRail(d, changedSubject){
+  document.querySelectorAll('#srailFull .sgroup').forEach(g=>{ const mine = g.dataset.s === d.subject; g.classList.toggle('current', mine); if (changedSubject) g.open = mine; else if (mine) g.open = true; });
+  document.querySelectorAll('#srailFull .tlist a').forEach(a=>a.setAttribute('aria-current', a.dataset.d === d.id ? 'true' : 'false'));
+  document.querySelectorAll('#srailMini a').forEach(a=>a.setAttribute('aria-current', a.dataset.s === d.subject ? 'true' : 'false'));
+  const rail = $('srail'), a = rail.querySelector('.tlist a[aria-current="true"]');
+  if (a){ const top = a.offsetTop, bottom = top + a.offsetHeight; if (top < rail.scrollTop + 40 || bottom > rail.scrollTop + rail.clientHeight - 20) rail.scrollTop = top - rail.clientHeight/3; }
+}
 
 /* ---------- cheat sheet ---------- */
 const refKeys = Object.keys(Lab.REF);
@@ -103,7 +137,8 @@ function renderReadout(out){
   const html = rows.map(([k,v,c])=>`<span class="k">${esc(k)}</span><span class="v ${c||''}">${esc(v)}</span>`).join('');
   if (html !== lastReadout){ readoutEl.innerHTML = html; lastReadout = html; } readoutEl.hidden = !rows.length;
   const live = cur.live ? cur.live(params, out) : '';
-  if (live !== lastLive){ liveEl.innerHTML = live; lastLive = live; liveEl.hidden = !live; }
+  if (live !== lastLive){ liveEl.innerHTML = live; lastLive = live; }
+  liveEl.hidden = !live;
 }
 function renderCode(out){ const el = $('codeOut'); if (el) el.innerHTML = hl(cur.code(params, out)); }
 engine.state.onFrame = (out, now)=>{
@@ -115,9 +150,9 @@ engine.state.onFrame = (out, now)=>{
 function showSubject(d){
   const s = subjById(d.subject), changedSubject = !cur || cur.subject !== d.subject;
   cur = d; params = {}; d.params.forEach(p=>params[p.id]=p.value); lastReadout = ''; lastLive = ''; codeDirty = true;
+  liveEl.innerHTML = ''; liveEl.hidden = true;
   $('subjGlyph').innerHTML = glyph(s.glyph, 34); $('subjTitle').textContent = s.title; $('subjBlurb').textContent = s.blurb; $('crumbSubj').textContent = s.title;
-  $('topics').innerHTML = s.demos.map(x=>`<a href="#${x.id}" aria-current="${x===d}">${esc(x.title)}<span>${esc(x.short)}</span></a>`).join('');
-  const curChip = $('topics').querySelector('[aria-current="true"]'); if (curChip) curChip.scrollIntoView({block:'nearest', inline:'nearest'});
+  updateRail(d, changedSubject); closeDrawer();
   playBtn.hidden = !d.time; playBtn.textContent = engine.playing ? 'Pause' : 'Play';
   buildControls(d); renderLesson(d);
   engine.init($('viewport'), $('cv'), $('labels'));

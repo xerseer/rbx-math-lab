@@ -279,4 +279,138 @@ tween:Play()`,
   gotchas:[`Tweening <code>Position</code> and <code>Orientation</code> separately can look odd. Tween the <code>CFrame</code> instead.`,
            `Physics fights you on unanchored parts. Anchor what you move by CFrame, or use constraints like AlignPosition and AlignOrientation.`]
 });
+
+demo({
+  id:'cf-pivot', title:'Rotating around a pivot', short:'pivot * rot * pivot:Inverse() * cf', sig:'pivot * CFrame.Angles(...) * pivot:Inverse() * cf',
+  view:{theta:0.5, phi:0.75, r:20, ty:1.5}, time:true,
+  params:[R('hinge','Pivot along the door',-2,2,0.25,-2), R('ang','Angle',-180,180,5,70,'°'), T('anim','Swing',false)],
+  setup(K){
+    const base = CF.new(0,3,0), size = V(4,6,0.3);
+    K.part(size,'--part',{front:false, opacity:0.18}).setCF(base);
+    const door = K.part(size,'--accent'), pv = K.point('--ink',0.18), axis = K.line('--ink',{dashed:true}), arc = K.line('--va',{dashed:true, max:73});
+    const lp = K.label('pivot','--ink','big');
+    return {update(p,t){
+      const a = (p.anim ? Math.sin(t*1.2)*90 : p.ang)*D2R;
+      const pivot = CF.mul(base, CF.new(p.hinge,0,0)), P = CF.pos(pivot);
+      const cf = CF.mul(pivot, CF.angles(0,a,0), CF.inv(pivot), base); door.setCF(cf);
+      pv.position.copy(P); axis.set(P.clone().add(V(0,-3.5,0)), P.clone().add(V(0,3.5,0))); lp.at(P.clone().add(V(0,3.9,0)));
+      const pts = []; for (let i=0;i<=72;i++){ const ai = a*i/72; pts.push(CF.pos(CF.mul(pivot, CF.angles(0,ai,0), CF.inv(pivot), base))); } arc.set(pts);
+      return {a, P, pos:CF.pos(cf)};
+    }};
+  },
+  readout:(p,o)=>[['pivot', vs(o.P)],['angle', f(o.a/D2R,0)+'°'],['door centre', vs(o.pos),'acc']],
+  code:(p,o)=>`-- the hinge: a point on the door's edge (in the door's own space)
+local pivot = door.CFrame * CFrame.new(${f(p.hinge)}, 0, 0)
+
+local swing = CFrame.Angles(0, math.rad(${f(o.a/D2R,0)}), 0)
+door.CFrame = pivot * swing * pivot:Inverse() * door.CFrame
+--  1. pivot:Inverse() * door.CFrame  → the door relative to the hinge
+--  2. swing                           → rotate that around the hinge
+--  3. pivot * ...                     → put it back in the world
+
+-- models have a pivot built in:
+model.WorldPivot = pivot
+model:PivotTo(model:GetPivot() * swing)`,
+  body:`<p>Rotating a part spins it around its <b>centre</b>. A door should spin around its hinge instead. The trick is three steps in one line: express the part relative to the pivot (<code>pivot:Inverse() * cf</code>), rotate, then put it back (<code>pivot * …</code>).</p>
+<p>Slide the pivot along the door. At the edge it swings like a real door; at the middle it spins in place. The dashed curve is the path the door's centre takes.</p>`,
+  uses:[`<b>Doors, gates, lids and drawbridges.</b>`,
+        `<b>Rotating a whole build</b> around the point the player clicked.`,
+        `<b>Swinging weapons and levers</b> around a handle.`],
+  gotchas:[`For models, set <code>WorldPivot</code> (or the PrimaryPart) and use <code>PivotTo</code>. It moves every part together.`,
+           `Tweening the door's CFrame straight from closed to open cuts a straight line through the corner. Tween a NumberValue for the angle and rebuild the CFrame every frame instead.`]
+});
+
+demo({
+  id:'cf-camera', title:'Over-the-shoulder camera', short:'focus * Angles * CFrame.new(side, 0, dist)', sig:'focus * CFrame.Angles(0, yaw, 0) * CFrame.Angles(pitch, 0, 0) * CFrame.new(side, 0, distance)',
+  view:{theta:0.9, phi:0.9, r:26, ty:2},
+  params:[R('yaw','Yaw (mouse X)',-180,180,5,20,'°'), R('pitch','Pitch (mouse Y)',-70,40,5,-15,'°'), R('dist','Distance',4,14,0.5,9), R('side','Shoulder offset',-3,3,0.25,2), T('wall','Wall behind the player',true)],
+  setup(K){
+    const ray = new THREE.Raycaster();
+    const pl = K.part(V(1.4,2,1)); pl.position.set(0,1,0);
+    const wall = K.part(V(10,6,0.6),'--part',{front:false, opacity:0.55}); wall.position.set(0,3,5.5);
+    const cam = new THREE.Group(); K.add(cam); K.part(V(0.9,0.6,0.8),'--ink',{parent:cam});
+    const fr = K.line('--accent',{max:16, parent:cam}), w = 3*Math.tan(35*D2R)*16/9, h = 3*Math.tan(35*D2R);
+    const c = [V(-w,-h,-3),V(w,-h,-3),V(w,h,-3),V(-w,h,-3)];
+    fr.set([V(),c[0],c[1],V(),c[1],c[2],V(),c[2],c[3],V(),c[3],c[0]]);
+    const want = K.point('--muted',0.15), boom = K.line('--muted',{dashed:true}), aim = K.line('--accent',{dashed:true, opacity:0.6});
+    const lc = K.label('camera','--accent','big'), lw = K.label('','--bad');
+    return {update(p){
+      wall.visible = p.wall; wall.updateMatrixWorld(true);
+      const focusP = V(0,2.5,0), focus = CF.mul(CF.at(focusP), CF.angles(0,p.yaw*D2R,0), CF.angles(p.pitch*D2R,0,0));
+      const wanted = CF.mul(focus, CF.new(p.side,0,p.dist)), WP = CF.pos(wanted);
+      let camP = WP.clone(), blocked = false;
+      if (p.wall){ const d = WP.clone().sub(focusP); ray.set(focusP, d.clone().normalize()); ray.far = d.length(); const hit = ray.intersectObject(wall.body, false)[0];
+        if (hit){ blocked = true; const nm = new THREE.Matrix3().getNormalMatrix(wall.body.matrixWorld); const n = hit.face.normal.clone().applyMatrix3(nm).normalize(); camP = hit.point.clone().addScaledVector(n, 0.3); } }
+      const rot = new THREE.Quaternion(); wanted.decompose(V(), rot, V()); cam.position.copy(camP); cam.quaternion.copy(rot);
+      want.position.copy(WP); want.visible = blocked; boom.set(focusP, camP);
+      aim.set(camP, camP.clone().add(CF.look(wanted).multiplyScalar(12)));
+      lc.at(camP.clone().add(V(0,0.8,0))); lw.show(blocked).at(WP.clone().add(V(0,0.5,0))).text('wanted spot (inside the wall)');
+      return {camP, blocked};
+    }};
+  },
+  readout:(p,o)=>[['camera', vs(o.camP),'acc'],['wall in the way', o.blocked?'yes, pulled in':'no', o.blocked?'bad':'ok']],
+  code:(p,o)=>`camera.CameraType = Enum.CameraType.Scriptable
+local yaw, pitch = math.rad(${f(p.yaw)}), math.rad(${f(p.pitch)})   -- change these from mouse delta
+local SIDE, DIST = ${f(p.side)}, ${f(p.dist)}
+
+RunService:BindToRenderStep("ShoulderCam", Enum.RenderPriority.Camera.Value + 1, function()
+    pitch = math.clamp(pitch, math.rad(-70), math.rad(40))
+    local focus = CFrame.new(root.Position + Vector3.new(0, 1.5, 0))
+        * CFrame.Angles(0, yaw, 0)
+        * CFrame.Angles(pitch, 0, 0)
+    local wanted = focus * CFrame.new(SIDE, 0, DIST)
+
+    -- don't let walls get between the camera and the player
+    local result = workspace:Raycast(focus.Position, wanted.Position - focus.Position, params)
+    local position = result and result.Position + result.Normal * 0.3 or wanted.Position
+    camera.CFrame = CFrame.new(position) * wanted.Rotation
+end)`,
+  body:`<p>A third-person camera is a CFrame chain. Start at the player's head, turn by the yaw, tilt by the pitch, then step back and to the side in that rotated space. Because the step happens <i>after</i> the rotations, the camera swings around the player like it's on a boom.</p>
+<p>Real games add one more step: a raycast from the head to where the camera wants to be. If a wall is in the way, put the camera just in front of it. Swing the yaw toward the wall and watch the camera get pulled in.</p>`,
+  uses:[`<b>Third-person shooters</b> with a shoulder offset for aiming.`,
+        `<b>Custom spectate and replay cameras.</b>`,
+        `<b>Vehicle chase cams</b>: replace the yaw with the vehicle's own facing.`],
+  gotchas:[`Clamp pitch, or the camera flips over the top.`,
+           `Exclude the player's character from the wall raycast, or the camera snaps to their back.`,
+           `Update cameras in <code>BindToRenderStep</code> or <code>RenderStepped</code>, not <code>Heartbeat</code>, or the view stutters by a frame.`]
+});
+
+demo({
+  id:'cf-weld', title:'Welds: C0 and C1', short:'Part0.CFrame * C0 == Part1.CFrame * C1', sig:'Part1.CFrame = Part0.CFrame * C0 * C1:Inverse()',
+  view:{theta:0.6, phi:0.95, r:15, ty:2},
+  params:[R('body','Body turn',-180,180,5,30,'°'), R('cx','C0 X',-2,2,0.25,0), R('cy','C0 Y',-1,2,0.25,0.5), R('cz','C0 Z',-2,2,0.25,-0.8), R('c1','C1 turn',-180,180,5,0,'°')],
+  setup(K){
+    const body = K.part(V(2,2.4,1)); K.axes(body, 1.6, {names:false});
+    const shield = K.part(V(2.2,2.6,0.3),'--accent');
+    const joint = new THREE.Group(); K.add(joint); K.axes(joint, 0.9, {names:false, thick:0.03});
+    K.label('Part0 (torso)','--ink','big').attach = {obj:body, local:V(0,1.8,0)};
+    K.label('Part1 (shield)','--accent','big').attach = {obj:shield, local:V(0,1.8,0)};
+    K.label('joint: Part0 * C0','--ink').attach = {obj:joint, local:V(0,-0.6,0)};
+    return {update(p){
+      const b = CF.mul(CF.new(0,2,0), CF.angles(0,p.body*D2R,0)); body.setCF(b);
+      const C0 = CF.new(p.cx,p.cy,p.cz), C1 = CF.mul(CF.angles(0,p.c1*D2R,0), CF.new(0,0,0.25));
+      const j = CF.mul(b, C0); j.decompose(joint.position, joint.quaternion, V());
+      const s = CF.mul(b, C0, CF.inv(C1)); shield.setCF(s);
+      return {s:CF.pos(s)};
+    }};
+  },
+  readout:(p,o)=>[['shield position', vs(o.s),'acc']],
+  code:(p,o)=>`local weld = Instance.new("Weld")
+weld.Part0 = torso
+weld.Part1 = shield
+weld.C0 = CFrame.new(${f(p.cx)}, ${f(p.cy)}, ${f(p.cz)})   -- the joint, in the torso's space
+weld.C1 = CFrame.Angles(0, math.rad(${f(p.c1)}), 0) * CFrame.new(0, 0, 0.25)   -- the same joint, in the shield's space
+weld.Parent = shield
+
+-- Roblox keeps this true every frame:
+-- torso.CFrame * weld.C0 == shield.CFrame * weld.C1
+-- so: shield.CFrame = torso.CFrame * weld.C0 * weld.C1:Inverse()`,
+  body:`<p>A <code>Weld</code> holds two parts together through one shared joint. <b>C0</b> says where that joint is on Part0, and <b>C1</b> says where the same joint is on Part1. Roblox moves Part1 so that both descriptions land on the same spot and face the same way.</p>
+<p>Move C0 to slide the joint around the torso; the shield follows. Turn C1 to spin the shield around the joint. Turn the body and everything comes with it, because C0 is in the torso's own space.</p>`,
+  uses:[`<b>Attaching gear</b>: shields, backpacks, hats and weapons held at an exact offset.`,
+        `<b>Animation rigs</b>: Motor6D uses the same C0 and C1, plus a Transform that animations change.`,
+        `<b>Carrying objects</b>: weld a box in front of the player while they hold it.`],
+  gotchas:[`If you only need "stay where it is now", use a <code>WeldConstraint</code>. It records the current offset for you, with no C0 or C1.`,
+           `C0 and C1 are in each part's <b>own</b> space. Mixing them up flips the offset to the wrong side.`]
+});
 })();
