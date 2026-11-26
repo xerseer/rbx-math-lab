@@ -7,7 +7,7 @@ with sliders, live Luau code, real game uses and common mistakes.
 
 | Subject | Topics |
 | --- | --- |
-| Vector3 basics | Vector3.new, subtraction, scaling and flattening, Magnitude, Unit, Lerp, move toward, bounding boxes, averages, velocity and gravity, Fibonacci sphere |
+| Vector3 basics |   Vector3.new, subtraction, scaling and flattening, Magnitude, Unit, Lerp, move toward, bounding boxes, averages, velocity and gravity, Fibonacci sphere |
 | Vector maths | Dot, Cross, projection, signed angles, rotating vectors, closest point on a line, which side of a plane, building axes, reflection, leading targets, steering, rotation between vectors |
 | CFrame | What a CFrame is, Angles, lookAt, local vs world offsets, multiplication order, ToObjectSpace, Lerp, pivots, shoulder camera, weld C0/C1, local velocity, reading angles back, slerp vs angle lerp |
 | math library | sin/cos, atan2, clamp, grid snapping, noise, smoothing, easing curves, wrapping with %, remapping ranges, springs, level curves, angle wrapping |
@@ -30,23 +30,3 @@ with sliders, live Luau code, real game uses and common mistakes.
 | Calculus for games (advanced) | Derivatives, velocity from samples, integrals, Newton, bisection, gradient descent, arc length, smooth joins |
 | Spatial partitioning (advanced) | Brute force vs spatial hash, quadtrees, octrees, nearest neighbour, sweep and prune, level of detail |
 | Signals & networking (advanced) | Moving averages, exponential smoothing, dead zones, camera shake, aliasing, interpolation, prediction, hysteresis, rate limiting |
-
-## Layout
-
-```
-index.html              page shell (home, subject and cheat sheet views)
-assets/style.css        all styles, light and dark themes
-assets/lab.js           3D engine (three.js), drawing kit, topic registry
-assets/kit2.js          shared helpers: graphs, instanced cubes, label pools, heap
-assets/topics/*.js      one file per subject; each topic is a Lab demo
-assets/ts-core.js       shared header for the per-topic Studio scripts
-assets/ts-1.js … ts-4.js one ready-to-run Studio script per topic (202)
-assets/reference.js     "I want to…" finder and cheat sheet tables
-assets/app.js           routing and lesson UI
-```
-
-Every topic has a "Try in Studio" tab: a complete Script or LocalScript that builds its own parts, so it runs when pasted into an empty Baseplate.
-
-Each topic has its own link, for example `#vec-dot` or `#rc-filter`. A subject link such as `#raycast` opens its first topic.
-
-Run it locally with any static server, for example `python -m http.server`, then open http://localhost:8000.
