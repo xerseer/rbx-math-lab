@@ -61,20 +61,36 @@ const ROLL = {
 };
 demo({
   id:'au-rolloff', title:'Volume over distance', short:'RollOffMode, Min and Max', sig:'Inverse: min / distance   ·   Linear: 1 − (d − min) / (max − min)   ·   silent past RollOffMaxDistance',
-  view:{theta:0, phi:1.2, r:28, ty:3.5},
+  view:{theta:0, phi:0.98, r:40, ty:0, tz:9}, env:'grid',
   params:[S('mode','RollOffMode',[['Inverse','Inverse (realistic)'],['Linear','Linear'],['LinearSquare','LinearSquare']],'Inverse'), R('mn','RollOffMinDistance',1,20,0.5,5), R('mx','RollOffMaxDistance',20,150,1,80), R('d','Listener distance',0,150,0.5,20)],
   setup(K){
     const gr = graph(K, {x0:-10, y0:0.5, w:20, h:6, z:-2, xr:[0,150], yr:[0,1], xLabel:'distance →', xTicks:[[0,'0'],[50,'50'],[100,'100'],[150,'150']], yTicks:[[0,'0'],[1,'1']]});
     const curves = Object.keys(ROLL).map(k=>[k, gr.curve('--muted', 300, {opacity:0.4})]), main = gr.curve('--accent', 300);
     const dot = gr.dot('--accent', 0.25), mnL = gr.vline(5, '--va'), mxL = gr.vline(80, '--bad');
     const speaker = K.part(V(1.2, 1.6, 1.2), '--va'); const ear = K.point('--accent', 0.35), lab = K.label('', '--accent-ink', 'big');
+    /* rings on the ground around the speaker, at the same scale as the graph's distance axis */
+    const SX = -10, SZ = 4, SCALE = 20/150;
+    const ringLine = (color, opts)=>K.line(color, Object.assign({max:97}, opts));
+    const setRing = (ln, studs, y=0.04)=>{ const r = Math.max(0.01, studs*SCALE), pts = [];
+      for (let i=0;i<=96;i++){ const a = i/96*Math.PI*2; pts.push(V(SX + Math.cos(a)*r, y, SZ + Math.sin(a)*r)); } return ln.set(pts); };
+    const fullDisc = K.disc('--va', 0.18), mnRing = ringLine('--va'), mxRing = ringLine('--bad', {dashed:true});
+    const LEVELS = [0.75, 0.5, 0.25, 0.1], levelRings = LEVELS.map(()=>ringLine('--accent', {opacity:0.35}));
+    const levelTags = LEVELS.map(lv=>K.label('×' + lv, '--muted', 'tiny')), earRing = ringLine('--accent', {dashed:true, opacity:0.8});
+    const mnTag = K.label('min', '--va', 'tiny'), mxTag = K.label('max', '--bad', 'tiny');
     return {update(p){
       const mx = Math.max(p.mx, p.mn + 1);
       curves.forEach(([k, c])=>{ c.visible = k !== p.mode; c.plot(d=>ROLL[k](d, p.mn, mx), 0, 150); });
       main.plot(d=>ROLL[p.mode](d, p.mn, mx), 0, 150);
       const v = ROLL[p.mode](p.d, p.mn, mx); dot.at(p.d, v); mnL.at(p.mn); mxL.at(mx);
-      speaker.position.set(-10, 0.8, 4); ear.position.set(-10 + p.d/150*20, 0.6, 4);
-      lab.at(V(-10 + p.d/150*20, 1.7, 4)).text(`volume ×${f(v,2)}`);
+      speaker.position.set(SX, 0.8, SZ); ear.position.set(SX + p.d*SCALE, 0.6, SZ);
+      lab.at(V(SX + p.d*SCALE, 1.7, SZ)).text(`volume ×${f(v,2)}`);
+      // full volume inside min, silent outside max, and contour rings where the volume drops to each level
+      fullDisc.position.set(SX, 0.02, SZ); fullDisc.scale.setScalar(Math.max(0.01, p.mn*SCALE));
+      setRing(mnRing, p.mn); setRing(mxRing, mx); setRing(earRing, p.d, 0.06);
+      mnTag.at(V(SX, 0.1, SZ - p.mn*SCALE - 0.3)); mxTag.at(V(SX, 0.1, SZ - mx*SCALE - 0.3));
+      LEVELS.forEach((lv, i)=>{ let d = p.mn; while (d < mx && ROLL[p.mode](d, p.mn, mx) > lv) d += 0.25;
+        const show = d < mx - 0.25; levelRings[i].visible = show; levelTags[i].show(show && d*SCALE > 1.6);
+        if (show){ setRing(levelRings[i], d, 0.03); levelTags[i].at(V(SX + d*SCALE*0.7071, 0.1, SZ + d*SCALE*0.7071)); } });
       return {v};
     }};
   },
