@@ -89,6 +89,18 @@
         <span><a href="#home">All subjects</a> › <span id="crumbSubj"></span></span>
       </div>
       <div class="subject-title"><span id="subjGlyph"></span><h1 id="subjTitle"></h1><p id="subjBlurb"></p></div>
+      <details class="studio" id="studioBox" hidden>
+        <summary><span class="studio-tag">Try it in Studio</span><span id="studioTitle"></span><span class="studio-where" id="studioWhere"></span></summary>
+        <div class="studio-body">
+          <p id="studioWhat"></p>
+          <ol class="studio-steps">
+            <li>Open any place in Roblox Studio (a new Baseplate is fine).</li>
+            <li>Create a <b id="studioKind"></b> and paste the code in.</li>
+            <li>Press Play. The script builds everything it needs.</li>
+          </ol>
+          <div class="codebox"><div class="codebar"><span>Complete script, ready to paste</span><button type="button" id="studioCopy">Copy</button></div><pre class="code studio-code"><code id="studioCode"></code></pre></div>
+        </div>
+      </details>
     </div>
     <div class="workspace">
       <div class="stage">
@@ -153,6 +165,7 @@
 <script src="assets/topics/calc.js"></script>
 <script src="assets/topics/spatial.js"></script>
 <script src="assets/topics/signal.js"></script>
+<script src="assets/studio.js"></script>
 <script src="assets/reference.js"></script>
 <script src="assets/app.js"></script>
 </body>
