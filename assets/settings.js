@@ -10,7 +10,7 @@ const DEFAULTS = {theme:'studio', accent:'', text:1, density:'normal', icons:1};
 const THEMES = [
   ['studio', 'Studio', ['#2B2B2B', '#3C3C3C', '#00A2FF']],
   ['dark', 'Dark', ['#11151B', '#1F252E', '#F29E3A']],
-  ['mono', 'Mono', ['#FFFFFF', '#F4F4F5', '#2F5BFF']],
+  ['light', 'Light', ['#FFFFFF', '#F4F4F5', '#2F5BFF']],
   ['calm', 'Calm', ['#0F1216', '#1B2129', '#4FB3BF']],
   ['paper', 'Paper', ['#F6F3EE', '#FFFDF9', '#C8553D']],
   ['forest', 'Forest', ['#13241C', '#1E3B2F', '#C8B48A']],
@@ -31,6 +31,7 @@ const load = ()=>{ try { return Object.assign({}, DEFAULTS, JSON.parse(localStor
 const save = s=>{ try { localStorage.setItem(KEY, JSON.stringify(s)); } catch(e){} };
 let state = load();
 if (!THEMES.some(([name])=>name === state.theme)) state.theme = state.theme === 'light' ? 'mono' : DEFAULTS.theme;
+if (!THEMES.some(([name])=>name === state.theme)) state.theme = state.theme === 'mono' ? 'light' : DEFAULTS.theme;
 
 // colour helpers for deriving the accent's text and tint colours from the theme
 const hex = h=>{ h = h.trim().replace('#', ''); if (h.length === 3) h = h.split('').map(c=>c + c).join(''); return [0, 2, 4].map(i=>parseInt(h.slice(i, i + 2), 16)); };
