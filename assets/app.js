@@ -143,15 +143,22 @@ function buildControls(d){
 const TABS = [['idea','Idea'],['code','Luau code'],['uses','In games'],['gotchas','Watch out']];
 function renderLesson(d){
   const s = subjById(d.subject), idx = s.demos.indexOf(d), prev = s.demos[idx-1], next = s.demos[idx+1];
+  const ts = Lab.tsScript ? Lab.tsScript(d.id, d.title) : null, tabs = ts ? TABS.concat([['studio','Try in Studio']]) : TABS;
+  if (!ts && lessonTab === 'studio') lessonTab = 'idea';
   lessonEl.innerHTML = `
     <p class="eyebrow">${esc(s.title)} · ${idx+1} of ${s.demos.length}${d.adv || s.level ? ' · Advanced' : ''}</p>
     <h2>${esc(d.title)}</h2>
     <code class="sig">${esc(d.sig)}</code>
-    <div class="ltabs" role="tablist">${TABS.map(([k,t])=>`<button type="button" role="tab" data-t="${k}" aria-selected="${k===lessonTab}">${t}</button>`).join('')}</div>
+    <div class="ltabs" role="tablist">${tabs.map(([k,t])=>`<button type="button" role="tab" data-t="${k}" aria-selected="${k===lessonTab}">${t}</button>`).join('')}</div>
     <div class="lpanel" data-p="idea"${lessonTab==='idea'?'':' hidden'}>${d.body}</div>
     <div class="lpanel" data-p="code"${lessonTab==='code'?'':' hidden'}><div class="codebox"><div class="codebar"><span class="live-dot">Updates with the sliders</span><button type="button" id="copyBtn">Copy</button></div><pre class="code"><code id="codeOut"></code></pre></div></div>
     <div class="lpanel" data-p="uses"${lessonTab==='uses'?'':' hidden'}><ul class="items">${d.uses.map(u=>`<li>${u}</li>`).join('')}</ul></div>
     <div class="lpanel" data-p="gotchas"${lessonTab==='gotchas'?'':' hidden'}><ul class="items warn">${d.gotchas.map(u=>`<li>${u}</li>`).join('')}</ul></div>
+    ${ts ? `<div class="lpanel ts-panel" data-p="studio"${lessonTab==='studio'?'':' hidden'}>
+      <p>${esc(ts.what)}</p>
+      <ol class="studio-steps"><li>Open any place in Roblox Studio (a new Baseplate is fine).</li><li>Insert a <b>${ts.kind}</b> into <b>${esc(ts.where)}</b> and paste the code.</li><li>Press Play. Everything it needs is built in a folder called <code>MathLabDemo</code>, 30 studs in front of spawn.</li></ol>
+      <div class="codebox"><div class="codebar"><span>Complete ${ts.kind}</span><button type="button" id="tsCopy">Copy</button></div><pre class="code studio-code"><code id="tsCode">${hl(ts.code)}</code></pre></div>
+    </div>` : ''}
     <nav class="pager" aria-label="Topic pages">
       ${prev?`<a href="#${prev.id}"><small>Previous</small>${esc(prev.title)}</a>`:''}
       ${next?`<a class="next" href="#${next.id}"><small>Next</small>${esc(next.title)}</a>`:`<a class="next" href="#home"><small>Done with ${esc(s.title)}</small>All subjects</a>`}
@@ -159,6 +166,12 @@ function renderLesson(d){
   lessonEl.querySelector('.ltabs').addEventListener('click', e=>{ const b = e.target.closest('button'); if (!b) return; lessonTab = b.dataset.t;
     lessonEl.querySelectorAll('.ltabs button').forEach(x=>x.setAttribute('aria-selected', x===b ? 'true' : 'false'));
     lessonEl.querySelectorAll('.lpanel').forEach(pn=>pn.hidden = pn.dataset.p !== lessonTab); });
+  const tc = $('tsCopy');
+  if (tc) tc.addEventListener('click', ()=>{
+    const txt = $('tsCode').textContent, done = ok=>{ tc.textContent = ok ? 'Copied' : 'Select and copy'; setTimeout(()=>tc.textContent='Copy', 1600); };
+    const sel = ()=>{ const r = document.createRange(); r.selectNodeContents($('tsCode')); const g = getSelection(); g.removeAllRanges(); g.addRange(r); };
+    try { navigator.clipboard.writeText(txt).then(()=>done(true), ()=>{ sel(); done(false); }); } catch(e){ sel(); done(false); }
+  });
   const cb = $('copyBtn');
   cb.addEventListener('click', ()=>{
     const txt = $('codeOut').textContent;

@@ -143,6 +143,8 @@ body.rail-collapsed .srail-head{justify-content:center; padding:2px 0 8px}
 .studio-body p{margin:0; color:var(--muted); max-width:80ch}
 .studio-steps{margin:0; padding-left:20px; font-size:13.5px; display:grid; gap:2px}
 .studio-code{max-height:460px; overflow:auto}
+.ts-panel{display:grid; gap:10px; max-width:none}
+.ts-panel > p{color:var(--muted)}
 .content{min-width:0; container-type:inline-size}
 .workspace{display:grid; grid-template-columns:minmax(0,1fr); gap:18px; align-items:start}
 .stage{display:grid; gap:12px; min-width:0}
@@ -194,8 +196,8 @@ body.rail-collapsed .srail-head{justify-content:center; padding:2px 0 8px}
 .eyebrow{font-family:var(--f-display); font-size:11.5px; text-transform:uppercase; letter-spacing:.1em; color:var(--muted); margin:0 0 6px; font-weight:600}
 .lesson h2{font-size:1.6rem; letter-spacing:-.015em}
 .sig{display:inline-block; margin-top:10px; font-family:var(--f-mono); font-size:13px; background:var(--accent-soft); color:var(--accent-ink); padding:4px 9px; border-radius:6px; font-weight:500; max-width:100%; overflow-x:auto; white-space:nowrap}
-.ltabs{display:flex; gap:2px; margin-top:18px; border-bottom:1px solid var(--line); overflow-x:auto; overflow-y:hidden; scrollbar-width:none}
-.ltabs button{border:0; background:none; padding:8px 12px; font-size:14px; color:var(--muted); border-bottom:2px solid transparent; margin-bottom:-1px; white-space:nowrap}
+.ltabs{display:flex; gap:0; margin-top:18px; border-bottom:1px solid var(--line); overflow-x:auto; overflow-y:hidden; scrollbar-width:none}
+.ltabs button{border:0; background:none; padding:8px 9px; font-size:13.5px; color:var(--muted); border-bottom:2px solid transparent; margin-bottom:-1px; white-space:nowrap}
 .ltabs button:hover{color:var(--ink)}
 .ltabs button[aria-selected="true"]{color:var(--ink); border-bottom-color:var(--accent); font-weight:600}
 .lpanel{padding-top:14px; max-width:68ch}
