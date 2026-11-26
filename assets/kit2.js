@@ -40,9 +40,11 @@ function graph(K, o={}){
 /* Many coloured boxes (or spheres) in one draw call. */
 function inst(K, max, {geo=G.box, opacity=1}={}){
   const mat = new THREE.MeshLambertMaterial({color:0xffffff}); if (opacity < 1){ mat.transparent = true; mat.opacity = opacity; mat.depthWrite = false; }
-  const m = K.add(new THREE.InstancedMesh(geo, mat, max)); m.count = 0; m.frustumCulled = false;
+  const m = K.add(new THREE.InstancedMesh(geo, mat, max)); m.frustumCulled = false;
   const dm = new THREE.Matrix4(), q0 = new THREE.Quaternion(), white = new THREE.Color(1,1,1), cache = {}, sv = V();
+  // fill colours while count is still `max`: three.js sizes the colour buffer from the count on first use
   for (let i=0;i<max;i++) m.setColorAt(i, white);
+  m.count = 0;
   let n = 0;
   const api = {
     mesh:m,
