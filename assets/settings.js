@@ -10,19 +10,16 @@ const DEFAULTS = {theme:'studio', accent:'', text:1, density:'normal', icons:1};
 const THEMES = [
   ['studio', 'Studio', ['#2B2B2B', '#3C3C3C', '#00A2FF']],
   ['dark', 'Dark', ['#11151B', '#1F252E', '#F29E3A']],
-  ['light', 'Light', ['#EBEFF4', '#FFFFFF', '#E2851A']],
-  ['calm', 'Calm', ['#0F1216', '#1B2129', '#4FB3BF']],
-  ['blueprint', 'Blueprint', ['#0A1628', '#142842', '#3DD6F5']],
-  ['paper', 'Paper', ['#F6F3EE', '#FFFDF9', '#C8553D']],
   ['mono', 'Mono', ['#FFFFFF', '#F4F4F5', '#2F5BFF']],
-  ['soft', 'Soft', ['#F3F1F8', '#FFFFFF', '#7B5CF0']],
-  ['abyss', 'Abyss', ['#0B132B', '#1C2541', '#5BC0BE']],
+  ['calm', 'Calm', ['#0F1216', '#1B2129', '#4FB3BF']],
+  ['paper', 'Paper', ['#F6F3EE', '#FFFDF9', '#C8553D']],
   ['forest', 'Forest', ['#13241C', '#1E3B2F', '#C8B48A']],
-  ['synthwave', 'Synthwave', ['#1A0B26', '#2F1541', '#FF5B42']],
   ['slate', 'Slate', ['#262C33', '#303841', '#FF5722']],
   ['sand', 'Sand', ['#F2EEE6', '#EDE5D7', '#5D866C']],
-  ['ocean', 'Ocean', ['#EAF2F4', '#B9E4E8', '#167D8D']],
-  ['system', 'Match system', ['#EBEFF4', '#11151B', '#E2851A']],
+  ['espresso', 'Espresso', ['#1E1712', '#33271D', '#CE7F20']],
+  ['ember', 'Ember', ['#1F1F1F', '#323131', '#FF9808']],
+  ['rose', 'Rose', ['#FBF0EC', '#FBE3E5', '#CB7087']],
+  ['indigo', 'Indigo', ['#F6F3E8', '#EEE9F5', '#6061B6']],
 ];
 const ACCENTS = [['', 'Theme default'], ['#00A2FF', 'Blue'], ['#2BB3A8', 'Teal'], ['#3FB950', 'Green'], ['#E3B341', 'Yellow'],
   ['#E2851A', 'Orange'], ['#E5484D', 'Red'], ['#E0559B', 'Pink'], ['#8B5CF6', 'Purple']];
@@ -33,6 +30,7 @@ const ICONS = [[1, 'Normal'], [1.2, 'Large'], [1.4, 'Extra large']];
 const load = ()=>{ try { return Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch(e){ return Object.assign({}, DEFAULTS); } };
 const save = s=>{ try { localStorage.setItem(KEY, JSON.stringify(s)); } catch(e){} };
 let state = load();
+if (!THEMES.some(([name])=>name === state.theme)) state.theme = state.theme === 'light' ? 'mono' : DEFAULTS.theme;
 
 // colour helpers for deriving the accent's text and tint colours from the theme
 const hex = h=>{ h = h.trim().replace('#', ''); if (h.length === 3) h = h.split('').map(c=>c + c).join(''); return [0, 2, 4].map(i=>parseInt(h.slice(i, i + 2), 16)); };
@@ -42,7 +40,7 @@ const luminance = h=>{ const [r, g, b] = hex(h).map(v=>{ v /= 255; return v <= 0
 
 function apply(){
   const root = document.documentElement, st = root.style;
-  if (state.theme === 'system') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', state.theme);
+  root.setAttribute('data-theme', state.theme);
   root.setAttribute('data-density', state.density);
   st.setProperty('--ts', state.text);
   st.setProperty('--icon', state.icons);
@@ -83,7 +81,7 @@ function build(){
     <div class="set-head"><h2>Visual settings</h2><button type="button" class="icon-btn" id="settingsClose" aria-label="Close settings">
       <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4 L12 12 M12 4 L4 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button></div>
     <fieldset><legend>Theme</legend><div class="theme-grid">${THEMES.map(([v, label, c])=>`
-      <button type="button" class="theme-opt" data-set="theme" data-val="${v}"><span class="sw" style="background:${v === 'system' ? `linear-gradient(90deg, ${c[0]} 50%, ${c[1]} 50%)` : c[0]}">
+      <button type="button" class="theme-opt" data-set="theme" data-val="${v}"><span class="sw" style="background:${c[0]}">
         <i style="background:${c[1]}"></i><i style="background:${c[2]}"></i></span>${label}</button>`).join('')}</div></fieldset>
     <fieldset><legend>Accent colour</legend><div class="accent-row">${ACCENTS.map(([v, label])=>`
       <button type="button" class="accent-opt${v ? '' : ' auto'}" data-set="accent" data-val="${v}" title="${label}" aria-label="${label}"${v ? ` style="background:${v}"` : ''}></button>`).join('')}</div></fieldset>
@@ -102,9 +100,6 @@ function build(){
   document.getElementById('settingsReset').addEventListener('click', ()=>{ state = Object.assign({}, DEFAULTS); save(state); apply(); render(); window.dispatchEvent(new Event('resize')); });
   document.addEventListener('click', e=>{ if (!panel.hidden && !panel.contains(e.target) && !button.contains(e.target)) open(false); });
   document.addEventListener('keydown', e=>{ if (e.key === 'Escape' && !panel.hidden){ open(false); button.focus(); } });
-  // "Match system" follows the OS switching between light and dark
-  const mq = window.matchMedia('(prefers-color-scheme: dark)');
-  if (mq.addEventListener) mq.addEventListener('change', ()=>{ if (state.theme === 'system') apply(); });
   render();
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build); else build();
