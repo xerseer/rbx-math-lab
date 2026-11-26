@@ -21,6 +21,9 @@ with sliders, live Luau code, real game uses and common mistakes.
 | Grids & tiles | Grid coordinates, neighbours, distances, 1D storage, flood fill, Bresenham lines, rotating pieces, hex grids, chunks |
 | UI & screen maths | UDim2, AnchorPoint, aspect ratios, world-to-screen, off-screen arrows, health bars, radial cooldowns, layouts, dragging |
 | Numbers & formatting | Rounding, 1.2K abbreviations, timers, percentages, floating point, huge numbers, commas, stacks, averages |
+| Camera maths | Orbit cameras from yaw and pitch, field of view and zoom, keeping the camera out of walls |
+| Sequences & sums | Arithmetic waves, triangle numbers, diminishing returns |
+| Sound & audio maths | Semitones and PlaybackSpeed, volume over distance, decibels and volume sliders |
 | Geometry & intersections (advanced) | Ray vs sphere, ray vs plane, point in polygon, segment crossings |
 | Kinematics & IK (advanced) | Law of cosines, two-bone IK, FABRIK chains |
 | Physics simulation (advanced) | Euler vs Verlet integrators, bounces with friction, collisions and momentum, Verlet ropes |
@@ -30,3 +33,4 @@ with sliders, live Luau code, real game uses and common mistakes.
 | Calculus for games (advanced) | Derivatives, velocity from samples, integrals, Newton, bisection, gradient descent, arc length, smooth joins |
 | Spatial partitioning (advanced) | Brute force vs spatial hash, quadtrees, octrees, nearest neighbour, sweep and prune, level of detail |
 | Signals & networking (advanced) | Moving averages, exponential smoothing, dead zones, camera shake, aliasing, interpolation, prediction, hysteresis, rate limiting |
+| Steering & flocking (advanced) | Seek and arrive, wander, flocking with separation, alignment and cohesion |

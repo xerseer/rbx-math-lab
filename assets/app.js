@@ -29,6 +29,10 @@ const GLYPH = {
   calc:`<path d="M4 32 C 12 32, 16 8, 26 8 S 34 20, 36 20" fill="none" stroke="var(--accent)" stroke-width="2.4"/><line x1="12" y1="30" x2="32" y2="2" stroke="var(--va)" stroke-width="1.6" stroke-dasharray="3 2"/>`,
   quad:`<rect x="4" y="4" width="32" height="32" fill="none" stroke="var(--ink)" stroke-width="1.8"/><path d="M20 4 V36 M4 20 H36 M28 4 V20 M20 12 H36" stroke="var(--muted)" stroke-width="1.4"/><circle cx="31" cy="8" r="1.8" fill="var(--accent)"/><circle cx="24" cy="15" r="1.8" fill="var(--accent)"/><circle cx="10" cy="28" r="1.8" fill="var(--accent)"/>`,
   wave2:`<path d="M3 20 l3 -8 l3 14 l3 -10 l3 9 l3 -6" fill="none" stroke="var(--muted)" stroke-width="1.6"/><path d="M3 22 C 10 14, 16 26, 22 18 S 32 16, 37 18" fill="none" stroke="var(--accent)" stroke-width="2.4"/>`,
+  camera:`<rect x="4" y="13" width="17" height="13" rx="2" fill="var(--part)"/><circle cx="21" cy="19.5" r="3" fill="var(--accent)"/><path d="M23 19.5 L37 9 M23 19.5 L37 30" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/><line x1="37" y1="9" x2="37" y2="30" stroke="var(--accent)" stroke-width="2" stroke-dasharray="2 2"/>`,
+  seq:`<rect x="4" y="28" width="6" height="6" rx="1" fill="var(--va)"/><rect x="12" y="22" width="6" height="12" rx="1" fill="var(--va)"/><rect x="20" y="16" width="6" height="18" rx="1" fill="var(--va)"/><rect x="28" y="10" width="6" height="24" rx="1" fill="var(--accent)"/><path d="M5 24 L33 5" stroke="var(--muted)" stroke-width="1.3" stroke-dasharray="2 2"/>`,
+  sound:`<path d="M5 15 H11 L19 8 V32 L11 25 H5 Z" fill="var(--part)" stroke="var(--ink)" stroke-width="1.6" stroke-linejoin="round"/><path d="M24 14 Q28 20 24 26" fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round"/><path d="M29 9 Q36 20 29 31" fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round" opacity=".6"/>`,
+  boids:`<path d="M6 14 L16 10 L12 20 Z" fill="var(--va)"/><path d="M20 24 L30 20 L26 30 Z" fill="var(--accent)"/><path d="M22 8 L32 4 L28 14 Z" fill="var(--va)"/><path d="M4 34 Q 16 30 22 22" fill="none" stroke="var(--muted)" stroke-width="1.3" stroke-dasharray="2 2"/>`,
   bits:`<rect x="3" y="12" width="7" height="16" rx="1.2" fill="var(--accent)"/><rect x="12" y="22" width="7" height="6" rx="1.2" fill="var(--part)"/><rect x="21" y="12" width="7" height="16" rx="1.2" fill="var(--accent)"/><rect x="30" y="12" width="7" height="16" rx="1.2" fill="var(--accent)"/>`,
 };
 const glyph = (g, s=40)=>`<svg width="${s}" height="${s}" viewBox="0 0 40 40" aria-hidden="true">${GLYPH[g]||''}</svg>`;
@@ -38,9 +42,9 @@ const subjById = id=>subjects.find(s=>s.id===id);
 
 /* ---------- categories: a few drop-downs instead of one long list ---------- */
 const CATEGORIES = [
-  {id:'space', title:'Vectors & space', blurb:'Positions, directions, CFrames and rays.', subjects:['vector3', 'vecmath', 'cframe', 'raycast']},
-  {id:'core', title:'Core maths', blurb:'The math library, angles, chance and number tricks.', subjects:['math', 'trig', 'probability', 'num', 'bitwise']},
-  {id:'motion', title:'Motion, colour & UI', blurb:'Movement over time, curves, colours, grids and screen space.', subjects:['anim', 'bezier', 'color', 'grid', 'ui']},
+  {id:'space', title:'Vectors & space', blurb:'Positions, directions, CFrames, rays and cameras.', subjects:['vector3', 'vecmath', 'cframe', 'raycast', 'camera']},
+  {id:'core', title:'Core maths', blurb:'The math library, angles, chance, sequences and number tricks.', subjects:['math', 'trig', 'probability', 'num', 'bitwise', 'seq']},
+  {id:'motion', title:'Motion, colour & UI', blurb:'Movement over time, curves, colours, grids, screen space and sound.', subjects:['anim', 'bezier', 'color', 'grid', 'ui', 'audio']},
   {id:'adv', title:'Advanced subjects', blurb:'Deeper techniques for bigger systems: physics, pathfinding, procedural worlds, networking and more.', subjects:subjects.filter(s=>s.level).map(s=>s.id)},
 ];
 { // anything not placed above still shows up

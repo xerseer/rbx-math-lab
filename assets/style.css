@@ -339,20 +339,6 @@ footer.note{margin-top:44px; color:var(--muted); font-size:calc(13px * var(--ts,
   .lesson{max-height:none}
 }
 
-/* ---------- density (Visual settings > Density) ---------- */
-:root[data-density="compact"]{--gap:8px; --gap-s:6px; --pad-l:12px 14px; --pad-s:8px 10px; --view-h:calc(100vh - 310px)}
-:root[data-density="spaced"]{--gap:26px; --gap-s:16px; --pad-l:24px 26px; --pad-s:14px 16px; --view-h:calc(100vh - 370px)}
-:root[data-density="compact"] .sgroup summary{padding:4px 8px}
-:root[data-density="compact"] .sgroup .tlist a{padding-top:3px; padding-bottom:3px}
-:root[data-density="compact"] .controls{gap:6px 12px}
-:root[data-density="compact"] .lpanel{line-height:1.45}
-:root[data-density="spaced"] .sgroup summary{padding:9px 10px}
-:root[data-density="spaced"] .sgroup .tlist a{padding-top:8px; padding-bottom:8px}
-:root[data-density="spaced"] .sgroup + .sgroup{margin-top:6px}
-:root[data-density="spaced"] .controls{gap:14px 22px}
-:root[data-density="spaced"] .lpanel{line-height:1.75}
-:root[data-density="spaced"] .subjects{gap:22px}
-
 /* ---------- icons (bigger by default; Visual settings > Icon size) ---------- */
 .sgroup summary > svg:first-child{width:calc(26px * var(--icon, 1)); height:calc(26px * var(--icon, 1))}
 .sgroup .tlist a{padding-left:calc(26px * var(--icon, 1) + 17px)}
@@ -427,3 +413,122 @@ body.resizing-lesson{cursor:col-resize}
 .scat.current > summary{color:var(--accent-ink)}
 .scat-list{padding-bottom:4px}
 .srail-mini hr{width:60%; border:0; border-top:1px solid var(--line); margin:4px 0}
+
+/* =====================================================================
+   MORE THEMES, built from popular colorhunt.co palettes and layered the
+   way iamsajid.com/ui-colors does it: bg-dark (view, code) < bg < bg-light
+   (panels), with a lighter highlight border.
+   ===================================================================== */
+:root[data-theme="abyss"]{ /* #0B132B #1C2541 #3A506B #5BC0BE */
+  --bg:#0B132B; --panel:#131C38; --panel-2:#1C2541; --ink:#E3ECF7; --muted:#8C9BB5; --line:#2A3757;
+  --accent:#5BC0BE; --accent-ink:#8ADBD9; --accent-soft:#173843;
+  --x:#F2676A; --y:#6BD49A; --z:#6E9BF5; --va:#5BC0BE; --vb:#E58BC7; --ok:#6BD49A; --bad:#F2676A;
+  --part:#3A506B; --view:#09102A; --grid:#22304F; --grid2:#16203B;
+  --code-bg:#08102A; --c-kw:#B9A2F5; --c-num:#F5B97A; --c-str:#9FE3B5; --c-com:#5A6C8C; --c-glob:#8ADBD9;
+  color-scheme:dark;
+}
+:root[data-theme="forest"]{ /* #F5F0E6 #C8B48A #7F8C6A #1E3B2F */
+  --bg:#13241C; --panel:#1A2F25; --panel-2:#1E3B2F; --ink:#F5F0E6; --muted:#A9B29B; --line:#2C4A3B;
+  --accent:#C8B48A; --accent-ink:#E2D2AE; --accent-soft:#33402C;
+  --x:#E8735E; --y:#9CC36B; --z:#6FA3D8; --va:#7FC4AE; --vb:#D98BB0; --ok:#9CC36B; --bad:#E8735E;
+  --part:#7F8C6A; --view:#10201A; --grid:#2A4537; --grid2:#1C3128;
+  --code-bg:#0F1E17; --c-kw:#D9A7E0; --c-num:#E8B56E; --c-str:#B4D98A; --c-com:#6E7D68; --c-glob:#9CCFE0;
+  color-scheme:dark;
+}
+:root[data-theme="synthwave"]{ /* #FFD749 #FF5B42 #802C62 #421454 */
+  --bg:#1A0B26; --panel:#241033; --panel-2:#2F1541; --ink:#F7E9FF; --muted:#B49AC6; --line:#432059;
+  --accent:#FF5B42; --accent-ink:#FF8E7C; --accent-soft:#4A1A35;
+  --x:#FF5B6E; --y:#5CE6A0; --z:#6F8BFF; --va:#FFD749; --vb:#F06BD0; --ok:#5CE6A0; --bad:#FF5B6E;
+  --part:#802C62; --view:#160822; --grid:#3E1A52; --grid2:#2A1039;
+  --code-bg:#150820; --c-kw:#F06BD0; --c-num:#FFD749; --c-str:#8CF0C0; --c-com:#7D5F92; --c-glob:#8FB4FF;
+  color-scheme:dark;
+}
+:root[data-theme="slate"]{ /* #FF5722 #303841 #76ABAE #EFE8DD */
+  --bg:#262C33; --panel:#2D343C; --panel-2:#303841; --ink:#EFE8DD; --muted:#A3ABB3; --line:#3F4852;
+  --accent:#FF5722; --accent-ink:#FF8A63; --accent-soft:#4A3229;
+  --x:#F0605D; --y:#7CC98A; --z:#6A9EE8; --va:#76ABAE; --vb:#D98BB8; --ok:#7CC98A; --bad:#F0605D;
+  --part:#6B7680; --view:#22282E; --grid:#3A434D; --grid2:#2E353D;
+  --code-bg:#21272D; --c-kw:#E79BD4; --c-num:#FFB27A; --c-str:#A6D9A0; --c-com:#727C86; --c-glob:#8FC6C9;
+  color-scheme:dark;
+}
+:root[data-theme="sand"]{ /* #F5F5F0 #E6D8C3 #C2A68C #5D866C */
+  --bg:#F2EEE6; --panel:#FAF8F3; --panel-2:#EDE5D7; --ink:#2C2A24; --muted:#7A7264; --line:#E0D5C3;
+  --accent:#5D866C; --accent-ink:#3F6650; --accent-soft:#DFE8DC;
+  --x:#C4473D; --y:#4E8A55; --z:#3C6EB8; --va:#2F8582; --vb:#B4497F; --ok:#4E8A55; --bad:#C4473D;
+  --part:#C2A68C; --view:#ECE6DB; --grid:#D6CAB6; --grid2:#E4DBCC;
+  --code-bg:#F3EEE5; --c-kw:#8A4FA8; --c-num:#B05A12; --c-str:#3F7A4C; --c-com:#9B917F; --c-glob:#33689E;
+  color-scheme:light;
+}
+:root[data-theme="ocean"]{ /* #EEEEEE #B9E4E8 #167D8D #071B2B */
+  --bg:#EAF2F4; --panel:#FFFFFF; --panel-2:#E3F1F3; --ink:#071B2B; --muted:#4F6774; --line:#CFE2E6;
+  --accent:#167D8D; --accent-ink:#0F5F6B; --accent-soft:#D3EEF1;
+  --x:#D6454A; --y:#2E9B5E; --z:#2E6BD1; --va:#167D8D; --vb:#C24A8F; --ok:#2E9B5E; --bad:#D6454A;
+  --part:#9FBCC4; --view:#E1EEF1; --grid:#B5D0D6; --grid2:#CFE2E6;
+  --code-bg:#F2F8F9; --c-kw:#7C3FB0; --c-num:#B4540B; --c-str:#1F7A4D; --c-com:#7D929C; --c-glob:#1B5FA8;
+  color-scheme:light;
+}
+
+/* =====================================================================
+   DENSITY that you can actually see: compact squeezes everything,
+   spaced opens everything up. Normal stays as it was.
+   ===================================================================== */
+:root[data-density="compact"]{--gap:6px; --gap-s:4px; --pad-l:10px 12px; --pad-s:6px 8px; --radius:7px; --view-h:calc(100vh - 290px)}
+:root[data-density="spaced"]{--gap:30px; --gap-s:20px; --pad-l:28px 32px; --pad-s:16px 20px; --radius:14px; --view-h:calc(100vh - 400px)}
+
+:root[data-density="compact"] body{line-height:1.4}
+:root[data-density="compact"] .topbar .wrap{min-height:44px}
+:root[data-density="compact"] .topnav a{padding:3px 8px}
+:root[data-density="compact"] .settings-btn{height:28px; width:30px}
+:root[data-density="compact"] .hero{padding-block:18px 14px; gap:8px}
+:root[data-density="compact"] .hero h1{font-size:clamp(1.6rem, 2vw + 1rem, 2.2rem)}
+:root[data-density="compact"] .section{margin-top:22px}
+:root[data-density="compact"] .hcats{gap:6px}
+:root[data-density="compact"] .hcat > summary{padding:8px 12px; gap:10px}
+:root[data-density="compact"] .hcat > .subjects{padding:8px}
+:root[data-density="compact"] .subjects{gap:8px}
+:root[data-density="compact"] .subj-card{padding:10px 12px; gap:2px 10px}
+:root[data-density="compact"] .finder{gap:6px}
+:root[data-density="compact"] .finder a{padding:7px 10px; gap:2px}
+:root[data-density="compact"] .subject-layout{gap:10px; padding-top:10px}
+:root[data-density="compact"] .srail{padding:5px}
+:root[data-density="compact"] .scat > summary{padding:4px 6px}
+:root[data-density="compact"] .sgroup summary{padding:3px 6px; gap:7px}
+:root[data-density="compact"] .sgroup .tlist{padding:0 0 4px}
+:root[data-density="compact"] .sgroup .tlist a{padding-top:2px; padding-bottom:2px}
+:root[data-density="compact"] .subject-head{margin-bottom:4px}
+:root[data-density="compact"] .controls{gap:4px 12px}
+:root[data-density="compact"] .ctl{gap:1px}
+:root[data-density="compact"] .ltabs{margin-top:8px}
+:root[data-density="compact"] .ltabs button{padding:4px 7px}
+:root[data-density="compact"] .lpanel{padding-top:8px; line-height:1.4}
+:root[data-density="compact"] .lpanel p{margin-bottom:7px}
+:root[data-density="compact"] .readout{padding:4px 7px}
+
+:root[data-density="spaced"] body{line-height:1.7}
+:root[data-density="spaced"] .topbar .wrap{min-height:68px}
+:root[data-density="spaced"] .topnav a{padding:9px 15px}
+:root[data-density="spaced"] .hero{padding-block:64px 44px; gap:20px}
+:root[data-density="spaced"] .section{margin-top:72px}
+:root[data-density="spaced"] .hcats{gap:20px}
+:root[data-density="spaced"] .hcat > summary{padding:22px 26px; gap:20px}
+:root[data-density="spaced"] .hcat > .subjects{padding:24px}
+:root[data-density="spaced"] .subjects{gap:24px}
+:root[data-density="spaced"] .subj-card{padding:24px 26px; gap:10px 18px}
+:root[data-density="spaced"] .finder{gap:16px}
+:root[data-density="spaced"] .finder a{padding:18px 20px; gap:7px}
+:root[data-density="spaced"] .subject-layout{gap:30px; padding-top:30px}
+:root[data-density="spaced"] .srail{padding:14px}
+:root[data-density="spaced"] .scat + .scat{margin-top:12px}
+:root[data-density="spaced"] .scat > summary{padding:10px 10px}
+:root[data-density="spaced"] .sgroup summary{padding:10px 12px; gap:12px}
+:root[data-density="spaced"] .sgroup + .sgroup{margin-top:6px}
+:root[data-density="spaced"] .sgroup .tlist{gap:3px; padding:4px 0 12px}
+:root[data-density="spaced"] .sgroup .tlist a{padding-top:9px; padding-bottom:9px}
+:root[data-density="spaced"] .subject-head{margin-bottom:20px}
+:root[data-density="spaced"] .controls{gap:16px 28px}
+:root[data-density="spaced"] .ctl{gap:6px}
+:root[data-density="spaced"] .ltabs{margin-top:22px; padding:5px}
+:root[data-density="spaced"] .ltabs button{padding:9px 14px}
+:root[data-density="spaced"] .lpanel{padding-top:22px; line-height:1.8}
+:root[data-density="spaced"] .lpanel p{margin-bottom:18px}
+:root[data-density="spaced"] .readout{padding:10px 14px}

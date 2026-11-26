@@ -16,6 +16,12 @@ const THEMES = [
   ['paper', 'Paper', ['#F6F3EE', '#FFFDF9', '#C8553D']],
   ['mono', 'Mono', ['#FFFFFF', '#F4F4F5', '#2F5BFF']],
   ['soft', 'Soft', ['#F3F1F8', '#FFFFFF', '#7B5CF0']],
+  ['abyss', 'Abyss', ['#0B132B', '#1C2541', '#5BC0BE']],
+  ['forest', 'Forest', ['#13241C', '#1E3B2F', '#C8B48A']],
+  ['synthwave', 'Synthwave', ['#1A0B26', '#2F1541', '#FF5B42']],
+  ['slate', 'Slate', ['#262C33', '#303841', '#FF5722']],
+  ['sand', 'Sand', ['#F2EEE6', '#EDE5D7', '#5D866C']],
+  ['ocean', 'Ocean', ['#EAF2F4', '#B9E4E8', '#167D8D']],
   ['system', 'Match system', ['#EBEFF4', '#11151B', '#E2851A']],
 ];
 const ACCENTS = [['', 'Theme default'], ['#00A2FF', 'Blue'], ['#2BB3A8', 'Teal'], ['#3FB950', 'Green'], ['#E3B341', 'Yellow'],
