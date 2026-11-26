@@ -17,6 +17,18 @@ const GLYPH = {
   geo:`<path d="M6 30 L12 8 L24 14 L34 6 L30 32 L18 24 Z" fill="var(--va)" fill-opacity=".25" stroke="var(--va)" stroke-width="2" stroke-linejoin="round"/><circle cx="20" cy="20" r="3.2" fill="var(--accent)"/><line x1="20" y1="20" x2="38" y2="20" stroke="var(--muted)" stroke-width="1.3" stroke-dasharray="2 2"/>`,
   arm:`<line x1="6" y1="10" x2="18" y2="26" stroke="var(--va)" stroke-width="4" stroke-linecap="round"/><line x1="18" y1="26" x2="32" y2="14" stroke="var(--vb)" stroke-width="3.5" stroke-linecap="round"/><circle cx="6" cy="10" r="3" fill="var(--ink)"/><circle cx="18" cy="26" r="2.8" fill="var(--ink)"/><circle cx="34" cy="12" r="3.2" fill="none" stroke="var(--accent)" stroke-width="2"/>`,
   phys:`<path d="M4 34 L36 34" stroke="var(--part)" stroke-width="2.5" stroke-linecap="round"/><path d="M6 8 Q 12 34 16 34 Q 22 16 26 34 Q 30 26 33 34" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-dasharray="2.5 2"/><circle cx="6" cy="8" r="3.6" fill="var(--accent)"/>`,
+  tri:`<path d="M6 34 L34 34 L34 8 Z" fill="var(--va)" fill-opacity=".2" stroke="var(--va)" stroke-width="2.2" stroke-linejoin="round"/><path d="M14 34 A 8 8 0 0 0 13 29" fill="none" stroke="var(--accent)" stroke-width="2"/><rect x="29" y="29" width="5" height="5" fill="none" stroke="var(--ink)" stroke-width="1.4"/>`,
+  clock:`<circle cx="20" cy="20" r="14" fill="none" stroke="var(--va)" stroke-width="2.4"/><line x1="20" y1="20" x2="20" y2="10" stroke="var(--ink)" stroke-width="2.4" stroke-linecap="round"/><line x1="20" y1="20" x2="28" y2="24" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round"/>`,
+  palette:`<circle cx="13" cy="15" r="7" fill="var(--x)"/><circle cx="27" cy="15" r="7" fill="var(--y)" fill-opacity=".85"/><circle cx="20" cy="27" r="7" fill="var(--z)" fill-opacity=".8"/>`,
+  grid:`<rect x="5" y="5" width="30" height="30" fill="none" stroke="var(--muted)" stroke-width="1.6"/><path d="M15 5 V35 M25 5 V35 M5 15 H35 M5 25 H35" stroke="var(--muted)" stroke-width="1.2"/><rect x="15" y="15" width="10" height="10" fill="var(--accent)"/>`,
+  screen:`<rect x="4" y="7" width="32" height="22" rx="2.5" fill="none" stroke="var(--ink)" stroke-width="2.2"/><rect x="8" y="11" width="13" height="6" fill="var(--accent)"/><rect x="8" y="20" width="22" height="4" fill="var(--va)"/><line x1="14" y1="34" x2="26" y2="34" stroke="var(--ink)" stroke-width="2.2" stroke-linecap="round"/>`,
+  digits:`<text x="20" y="27" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="15" font-weight="700" fill="var(--accent)">1.2K</text>`,
+  mountain:`<path d="M3 34 L14 14 L20 22 L27 10 L37 34 Z" fill="var(--y)" fill-opacity=".35" stroke="var(--y)" stroke-width="2" stroke-linejoin="round"/><path d="M24 15 L27 10 L30 15" fill="none" stroke="var(--ink)" stroke-width="1.8"/>`,
+  path:`<circle cx="8" cy="32" r="3.5" fill="var(--va)"/><circle cx="32" cy="8" r="3.5" fill="var(--accent)"/><path d="M8 32 L8 20 L20 20 L20 8 L32 8" fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-dasharray="3 2"/><rect x="22" y="18" width="10" height="14" fill="var(--part)"/>`,
+  matrix:`<path d="M9 6 H5 V34 H9 M31 6 H35 V34 H31" fill="none" stroke="var(--ink)" stroke-width="2.2"/><circle cx="14" cy="13" r="2.4" fill="var(--x)"/><circle cx="20" cy="20" r="2.4" fill="var(--y)"/><circle cx="26" cy="27" r="2.4" fill="var(--z)"/><circle cx="26" cy="13" r="1.6" fill="var(--muted)"/><circle cx="14" cy="27" r="1.6" fill="var(--muted)"/>`,
+  calc:`<path d="M4 32 C 12 32, 16 8, 26 8 S 34 20, 36 20" fill="none" stroke="var(--accent)" stroke-width="2.4"/><line x1="12" y1="30" x2="32" y2="2" stroke="var(--va)" stroke-width="1.6" stroke-dasharray="3 2"/>`,
+  quad:`<rect x="4" y="4" width="32" height="32" fill="none" stroke="var(--ink)" stroke-width="1.8"/><path d="M20 4 V36 M4 20 H36 M28 4 V20 M20 12 H36" stroke="var(--muted)" stroke-width="1.4"/><circle cx="31" cy="8" r="1.8" fill="var(--accent)"/><circle cx="24" cy="15" r="1.8" fill="var(--accent)"/><circle cx="10" cy="28" r="1.8" fill="var(--accent)"/>`,
+  wave2:`<path d="M3 20 l3 -8 l3 14 l3 -10 l3 9 l3 -6" fill="none" stroke="var(--muted)" stroke-width="1.6"/><path d="M3 22 C 10 14, 16 26, 22 18 S 32 16, 37 18" fill="none" stroke="var(--accent)" stroke-width="2.4"/>`,
   bits:`<rect x="3" y="12" width="7" height="16" rx="1.2" fill="var(--accent)"/><rect x="12" y="22" width="7" height="6" rx="1.2" fill="var(--part)"/><rect x="21" y="12" width="7" height="16" rx="1.2" fill="var(--accent)"/><rect x="30" y="12" width="7" height="16" rx="1.2" fill="var(--accent)"/>`,
 };
 const glyph = (g, s=40)=>`<svg width="${s}" height="${s}" viewBox="0 0 40 40" aria-hidden="true">${GLYPH[g]||''}</svg>`;
@@ -24,7 +36,9 @@ const demoById = id=>demos.find(d=>d.id===id);
 const subjById = id=>subjects.find(s=>s.id===id);
 
 /* ---------- home ---------- */
-$('subjects').innerHTML = subjects.map(s=>`<a class="subj-card" href="#${s.id}">${glyph(s.glyph)}<h3>${esc(s.title)}</h3><p>${esc(s.blurb)}</p><span class="count">${s.demos.length} topics${s.level ? ` <span class="tag-adv">${esc(s.level)}</span>` : ''}</span></a>`).join('');
+const card = s=>`<a class="subj-card" href="#${s.id}">${glyph(s.glyph)}<h3>${esc(s.title)}</h3><p>${esc(s.blurb)}</p><span class="count">${s.demos.length} topics${s.level ? ` <span class="tag-adv">${esc(s.level)}</span>` : ''}</span></a>`;
+$('subjects').innerHTML = subjects.filter(s=>!s.level).map(card).join('');
+$('subjectsAdv').innerHTML = subjects.filter(s=>s.level).map(card).join('');
 
 let finderFilter = 'all', finderQuery = '';
 const FINDER = Lab.FINDER.filter(([, , id])=>demoById(id));

@@ -15,9 +15,21 @@ with sliders, live Luau code, real game uses and common mistakes.
 | Probability | Weighted loot tables, chance over many tries, dice sums, gaussian spread, shuffle bags, expected value, random spawns, rising-chance crits, events per second, Monte Carlo |
 | Raycasting | workspace:Raycast, RaycastParams filters, line of sight, mouse picking, placing on slopes, wall-banging, Spherecast, ricochets, area queries, hover vehicles, fast-bullet tunnelling |
 | Bitwise operations | Binary, flags, AND/OR/XOR/NOT, shifts, packing, free-slot search, autotiling, layer masks, negative numbers, Morton codes |
+| Trigonometry | Unit circle, radians, SOH CAH TOA, slopes, sine waves, polar spirals, Lissajous paths, 2D rotation, heights from angles |
+| Animation & timing | Durations, ping-pong loops, TweenInfo, sequences, staggering, keyframes, squash and stretch, idle motion, counters |
+| Colors | RGB, Color3:Lerp, HSV, rainbows, gradients, readable text, hex, flashes, distinct team colours |
+| Grids & tiles | Grid coordinates, neighbours, distances, 1D storage, flood fill, Bresenham lines, rotating pieces, hex grids, chunks |
+| UI & screen maths | UDim2, AnchorPoint, aspect ratios, world-to-screen, off-screen arrows, health bars, radial cooldowns, layouts, dragging |
+| Numbers & formatting | Rounding, 1.2K abbreviations, timers, percentages, floating point, huge numbers, commas, stacks, averages |
 | Geometry & intersections (advanced) | Ray vs sphere, ray vs plane, point in polygon, segment crossings |
 | Kinematics & IK (advanced) | Law of cosines, two-bone IK, FABRIK chains |
 | Physics simulation (advanced) | Euler vs Verlet integrators, bounces with friction, collisions and momentum, Verlet ropes |
+| Procedural generation (advanced) | fBm, ridges and terraces, domain warping, Voronoi, Poisson discs, cave automata, random walks, islands, L-systems |
+| Graphs & pathfinding (advanced) | BFS, Dijkstra, A*, heuristics, flow fields, path smoothing, waypoint graphs, following paths |
+| Matrices & transforms (advanced) | CFrame matrices, matrix × vector, forward kinematics, inverses, drift, basis changes, scaling, mirroring |
+| Calculus for games (advanced) | Derivatives, velocity from samples, integrals, Newton, bisection, gradient descent, arc length, smooth joins |
+| Spatial partitioning (advanced) | Brute force vs spatial hash, quadtrees, octrees, nearest neighbour, sweep and prune, level of detail |
+| Signals & networking (advanced) | Moving averages, exponential smoothing, dead zones, camera shake, aliasing, interpolation, prediction, hysteresis, rate limiting |
 
 ## Layout
 
@@ -25,6 +37,7 @@ with sliders, live Luau code, real game uses and common mistakes.
 index.html              page shell (home, subject and cheat sheet views)
 assets/style.css        all styles, light and dark themes
 assets/lab.js           3D engine (three.js), drawing kit, topic registry
+assets/kit2.js          shared helpers: graphs, instanced cubes, label pools, heap
 assets/topics/*.js      one file per subject; each topic is a Lab demo
 assets/reference.js     "I want to…" finder and cheat sheet tables
 assets/app.js           routing and lesson UI

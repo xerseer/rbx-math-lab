@@ -137,6 +137,8 @@ Lab.FINDER = [
   ['Make a rope, chain or rope bridge','Verlet + distance constraints','ph-rope'],
 ];
 
+Lab.FINDER = Lab.FINDER.concat(Lab.FINDER_EXTRA || []);
+
 Lab.REF = {
   math:{title:'math', rows:[
     ['math.abs(x)','Removes the minus sign','math.abs(-4) → 4','How far off a value is, whichever way'],
@@ -276,4 +278,5 @@ Lab.REF = {
     ['p0 + look * k','Control point for homing','launcher.CFrame.LookVector * 10','Missiles that curve onto targets'],
   ]},
 };
+Object.assign(Lab.REF, Lab.REF_EXTRA || {});
 })();
