@@ -526,3 +526,8 @@ body.resizing-lesson{cursor:col-resize}
   --code-bg:#F8F5EB; --c-kw:#6061B6; --c-num:#B4540B; --c-str:#2E7D4F; --c-com:#8D8AA6; --c-glob:#00105B;
   color-scheme:light;
 }
+
+/* ---------- labels are painted on a canvas (see placeLabels in lab.js); the DOM copies stay for measuring and screen readers ---------- */
+.labels .lbl{clip-path:inset(50%); pointer-events:none}
+.label-canvas{position:absolute; inset:0; width:100%; height:100%; pointer-events:none}
+.viewport canvas#cv{touch-action:none}

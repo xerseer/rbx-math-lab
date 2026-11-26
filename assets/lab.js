@@ -142,10 +142,9 @@ function makeKit(){
   kit.label = (text, color='--ink', cls='')=>{
     const el = document.createElement('div'); el.className = 'lbl ' + cls; el.style.setProperty('--c', `var(${color})`); el.textContent = text; E.labelLayer.appendChild(el);
     const L = {el, pos:V(), visible:true, attach:null, _t:text,
-      text(s){ if (L._t !== s){ el.textContent = s; L._t = s; L.w = 0; } return L; },
+      text(s){ if (L._t !== s){ el.textContent = s; L._t = s; } return L; },
       at(v){ L.pos.copy(v); return L; },
       color(c){ el.style.setProperty('--c', `var(${c})`); return L; },
-      w:0, h:0, x:NaN, y:NaN,
       show(b){ L.visible = b; return L; }};
     E.labels.push(L); return L;
   };
@@ -227,22 +226,46 @@ function build(){
 function load(demo, params){ E.demo = demo; E.params = params; E.simTime = 0; setView(demo.view); build(); resize(); }
 function unload(){ if (E.scene) clearScene(); E.demo = null; E.inst = null; }
 
-function resize(){ if (!E.renderer) return; E.labels.forEach(L=>{ L.w = 0; }); const w = E.viewport.clientWidth, h = E.viewport.clientHeight; if (!w || !h) return; E.renderer.setSize(w, h, false); E.camera.aspect = w/h; E.camera.updateProjectionMatrix(); }
+function resize(){ if (!E.renderer) return; E.labels.forEach(L=>{ L.st = null; }); const w = E.viewport.clientWidth, h = E.viewport.clientHeight; if (!w || !h) return; E.renderer.setSize(w, h, false); E.camera.aspect = w/h; E.camera.updateProjectionMatrix(); }
 
+/* Labels: each label keeps its DOM element (for styling, measuring and screen readers), but the
+   visible text is painted onto a canvas over the 3D view in the same frame as the 3D render.
+   That keeps labels locked to the scene and lets them glide at sub-pixel positions instead of
+   snapping pixel by pixel (which looked like shaking while the camera turns). */
 const proj = V();
+const LC = {canvas:null, ctx:null, w:0, h:0, dpr:0};
+const TRANSPARENT = /^(transparent|rgba\(0, 0, 0, 0\))$/;
+const offsetOf = (part, size)=>!part ? 0 : part.endsWith('%') ? parseFloat(part)/100*size : parseFloat(part) || 0;
+function labelStyle(L){
+  const el = L.el, sig = el.className + '|' + el.style.cssText + '|' + L._t;
+  if (L.st && L.sig === sig) return L.st;
+  const w = el.offsetWidth, h = el.offsetHeight;
+  if (!w) return null;
+  const cs = getComputedStyle(el), [tx, ty] = (el.style.translate || '').split(/\s+/);
+  L.sig = sig;
+  return L.st = {w, h, tx:offsetOf(tx, w), ty:offsetOf(ty, h), pad:parseFloat(cs.paddingLeft) || 0,
+    font:`${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`, color:cs.color,
+    bg:TRANSPARENT.test(cs.backgroundColor) ? null : cs.backgroundColor, radius:parseFloat(cs.borderTopLeftRadius) || 0,
+    opacity:parseFloat(cs.opacity) || 1};
+}
 function placeLabels(){
-  const w = E.viewport.clientWidth, h = E.viewport.clientHeight;
+  const w = E.viewport.clientWidth, h = E.viewport.clientHeight, dpr = Math.min(window.devicePixelRatio || 1, 3);
+  const cv = LC.canvas, ctx = LC.ctx;
+  if (LC.w !== w || LC.h !== h || LC.dpr !== dpr){ cv.width = Math.max(1, Math.round(w*dpr)); cv.height = Math.max(1, Math.round(h*dpr)); LC.w = w; LC.h = h; LC.dpr = dpr; }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h); ctx.textBaseline = 'middle';
   for (const L of E.labels){
     if (L.attach) L.attach.obj.localToWorld(proj.copy(L.attach.local)); else proj.copy(L.pos);
     let vis = L.visible; if (L.attach){ let o = L.attach.obj; while (o){ if (!o.visible) vis = false; o = o.parent; } }
     proj.project(E.camera); vis = vis && proj.z < 1 && proj.z > -1;
     if (L.el.hidden === vis) L.el.hidden = !vis;
     if (!vis) continue;
-    // measure once per text change, then snap the top-left corner to whole pixels so the text never re-rasterises mid-pixel
-    if (!L.w){ L.w = L.el.offsetWidth; L.h = L.el.offsetHeight; }
-    const x = Math.round((proj.x*0.5+0.5)*w - L.w/2), y = Math.round((-proj.y*0.5+0.5)*h - L.h/2);
-    if (x !== L.x || y !== L.y){ L.x = x; L.y = y; L.el.style.transform = `translate3d(${x}px, ${y}px, 0)`; }
+    const st = labelStyle(L); if (!st) continue;
+    const x = (proj.x*0.5 + 0.5)*w - st.w/2 + st.tx, y = (-proj.y*0.5 + 0.5)*h - st.h/2 + st.ty;
+    ctx.globalAlpha = st.opacity;
+    if (st.bg){ ctx.fillStyle = st.bg; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x, y, st.w, st.h, st.radius); else ctx.rect(x, y, st.w, st.h); ctx.fill(); }
+    ctx.font = st.font; ctx.fillStyle = st.color; ctx.fillText(L._t, x + st.pad, y + st.h/2);
   }
+  ctx.globalAlpha = 1;
 }
 let lastFrame = 0;
 function frame(now){
@@ -266,13 +289,30 @@ function init(viewport, canvas, labelLayer){
   const sun = new THREE.DirectionalLight(0xffffff, 0.55); sun.position.set(6,12,8); E.scene.add(sun);
   clearScene();
 
+  LC.canvas = document.createElement('canvas'); LC.canvas.className = 'label-canvas'; LC.canvas.setAttribute('aria-hidden', 'true');
+  labelLayer.appendChild(LC.canvas); LC.ctx = LC.canvas.getContext('2d');
+  if (document.fonts) document.fonts.addEventListener('loadingdone', ()=>E.labels.forEach(L=>{ L.st = null; }));
+
+  /* mouse like Roblox Studio: left or right drag turns, middle drag (or shift + drag) pans, wheel zooms */
   const pointers = new Map(); let pinch0 = 0, r0 = 0;
-  canvas.addEventListener('pointerdown', e=>{ canvas.setPointerCapture(e.pointerId); pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  const camRight = V(), camUp = V();
+  const pan = (dx, dy)=>{
+    const perPixel = 2*orbit.r*Math.tan(E.camera.fov*D2R/2)/Math.max(1, E.viewport.clientHeight);
+    camRight.setFromMatrixColumn(E.camera.matrixWorld, 0); camUp.setFromMatrixColumn(E.camera.matrixWorld, 1);
+    orbit.target.addScaledVector(camRight, -dx*perPixel).addScaledVector(camUp, dy*perPixel);
+    if (orbit.target.length() > 80) orbit.target.setLength(80);
+    applyCam();
+  };
+  canvas.addEventListener('contextmenu', e=>e.preventDefault());
+  canvas.addEventListener('mousedown', e=>{ if (e.button === 1) e.preventDefault(); });   // no middle-click autoscroll
+  canvas.addEventListener('auxclick', e=>{ if (e.button === 1) e.preventDefault(); });
+  canvas.addEventListener('pointerdown', e=>{ canvas.setPointerCapture(e.pointerId); pointers.set(e.pointerId,{x:e.clientX,y:e.clientY, pan:e.button === 1 || e.shiftKey});
     if (pointers.size===2){ const [a,b]=[...pointers.values()]; pinch0=Math.hypot(a.x-b.x,a.y-b.y); r0=orbit.r; } });
   canvas.addEventListener('pointermove', e=>{
     if (!pointers.has(e.pointerId)) return;
-    const prev = pointers.get(e.pointerId); const dx=e.clientX-prev.x, dy=e.clientY-prev.y; pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
-    if (pointers.size===1){ orbit.theta -= dx*0.008; orbit.phi = clamp(orbit.phi - dy*0.008, 0.12, 1.53); applyCam(); }
+    const prev = pointers.get(e.pointerId); const dx=e.clientX-prev.x, dy=e.clientY-prev.y; pointers.set(e.pointerId,{x:e.clientX,y:e.clientY, pan:prev.pan});
+    if (pointers.size===1 && prev.pan) pan(dx, dy);
+    else if (pointers.size===1){ orbit.theta -= dx*0.008; orbit.phi = clamp(orbit.phi - dy*0.008, 0.12, 1.53); applyCam(); }
     else if (pointers.size===2){ const [a,b]=[...pointers.values()]; const d=Math.hypot(a.x-b.x,a.y-b.y); if (pinch0>0){ orbit.r = clamp(r0*pinch0/d, 5, 80); applyCam(); } }
   });
   const endPtr = e=>{ pointers.delete(e.pointerId); if (pointers.size<2) pinch0=0; };
