@@ -437,4 +437,116 @@ end
   gotchas:[`Nudge the new origin off the surface with <code>+ n * 0.01</code>, or the next ray can hit the same wall at distance 0 and get stuck.`,
            `Cap the number of bounces, and the total distance too, so one shot can't loop forever in a corner.`]
 });
+
+{
+const boxClosest = (m, c)=>{ const inv = m.matrixWorld.clone().invert(), l = c.clone().applyMatrix4(inv); l.set(clamp(l.x,-0.5,0.5), clamp(l.y,-0.5,0.5), clamp(l.z,-0.5,0.5)); return l.applyMatrix4(m.matrixWorld); };
+
+demo({
+  id:'rc-overlap', title:'Area queries: explosions', short:'GetPartBoundsInRadius', sig:'workspace:GetPartBoundsInRadius(position, radius, overlapParams)  →  { BasePart }',
+  view:{theta:0.3, phi:0.65, r:28, ty:0},
+  params:[R('bx','Blast X',-9,9,0.5,-1), R('bz','Blast Z',-8,8,0.5,0), R('r','Radius',2,11,0.5,7), T('los','Walls block the blast',true)],
+  setup(K){
+    const rng = Lab.mulberry32(4242);
+    const defs = Array.from({length:12}, (_,i)=>({name:`Crate${i+1}`, size:V(1.6,1.6,1.6), pos:V((rng()*2-1)*10, 0.8, (rng()*2-1)*8), rot:[0,rng()*90,0]}));
+    const crates = world(K, defs), wall = world(K, [{name:'Wall', size:V(1,3,8), pos:V(3,1.5,0), label:true}])[0];
+    const disc = K.disc('--accent',0.1), sph = K.wsphere(1,'--accent',0.15), core = K.point('--accent',0.3);
+    const rays = crates.map(()=>K.line('--muted',{dashed:true})), labs = crates.map(()=>K.label('','--ink'));
+    return {update(p){
+      const O = V(p.bx,0.8,p.bz); core.position.copy(O); disc.scale.setScalar(p.r); disc.position.set(O.x,0.02,O.z); sph.scale.setScalar(p.r); sph.position.copy(O);
+      let hits = 0, blocked = 0, total = 0;
+      crates.forEach((m,i)=>{
+        const cp = boxClosest(m, O), d = cp.distanceTo(O), inside = d <= p.r; let state = 'out';
+        if (inside){ state = 'hit'; if (p.los){ const h = cast(O, m.position.clone().sub(O), O.distanceTo(m.position), [wall]); if (h) state = 'blocked'; } }
+        m.material.color.copy(C(state==='hit' ? '--accent' : state==='blocked' ? '--muted' : '--part'));
+        rays[i].visible = inside; if (inside) rays[i].set(O, m.position);
+        const dmg = Math.round(100*(1 - d/p.r));
+        labs[i].show(inside).at(m.position.clone().add(V(0,1.3,0))).text(state==='hit' ? `-${dmg}` : 'blocked');
+        if (state==='hit'){ hits++; total += dmg; } if (state==='blocked') blocked++;
+      });
+      return {hits, blocked, total};
+    }};
+  },
+  readout:(p,o)=>[['parts found', String(o.hits + o.blocked)],['damaged', String(o.hits),'acc'],['blocked by wall', String(o.blocked)],['total damage', String(o.total)]],
+  code:(p,o)=>`local overlap = OverlapParams.new()
+overlap.FilterDescendantsInstances = { workspace.Crates }
+overlap.FilterType = Enum.RaycastFilterType.Include
+
+local RADIUS = ${f(p.r)}
+local parts = workspace:GetPartBoundsInRadius(blastPos, RADIUS, overlap)   -- ${o.hits + o.blocked} parts
+
+for _, part in parts do
+    local distance = (part.Position - blastPos).Magnitude
+${p.los ? `    -- only damage things with nothing solid in between
+    local blocker = workspace:Raycast(blastPos, part.Position - blastPos, wallParams)
+    if blocker and blocker.Instance ~= part then continue end
+` : ''}    local damage = 100 * (1 - math.clamp(distance / RADIUS, 0, 1))
+    damagePart(part, damage)
+end`,
+  body:`<p>A raycast checks a line. To find everything in an <b>area</b>, use a spatial query: <code>GetPartBoundsInRadius</code> returns every part whose bounding box touches a sphere, and <code>GetPartBoundsInBox</code> does the same for a box. They're perfect for explosions, auras and pickups.</p>
+<p>A query doesn't care about walls, so a blast would hurt players hiding behind cover. Add a raycast from the centre to each part found: if something else is hit first, skip it. Move the blast next to the wall and toggle that check. Damage falls off with distance from the centre.</p>`,
+  uses:[`<b>Explosions and area damage</b>, with falloff and cover.`,
+        `<b>Auras and healing zones</b>: check every half second who's inside.`,
+        `<b>Magnet pickups</b>: find coins within range of the player.`],
+  gotchas:[`Results are <b>parts</b>, so one character can appear many times (arms, legs, accessories). Group them by <code>part.Parent</code> and damage each humanoid once.`,
+           `"Bounds" means the part's bounding box, which is a little bigger than rotated or round parts. Use <code>GetPartsInPart</code> for exact shapes.`]
+});
+
+demo({
+  id:'rc-hover', title:'Hover vehicles: four rays', short:'average the hits and normals', sig:'4 × Raycast down  →  average height + average Normal  →  CFrame', time:true,
+  view:{theta:0.3, phi:1.05, r:22, ty:1.5},
+  params:[R('hover','Hover height',0.5,3,0.1,1.4), R('speed','Speed',1,8,0.5,4), T('align','Tilt with the ground',true)],
+  setup(K){
+    const parts = world(K, [
+      {name:'Ramp', size:V(6,1,5), pos:V(-5,0.7,0), rot:[0,0,15]},
+      {name:'Bump', size:V(4,1,5), pos:V(1,0.4,0), rot:[0,0,-18]},
+      {name:'Hill', size:V(5,1,5), pos:V(6,0.9,0), rot:[0,0,10]},
+      {name:'Baseplate', size:V(60,1,60), pos:V(0,-0.5,0), visible:false},
+    ]);
+    const board = K.part(V(3,0.35,1.6),'--accent'), rays = [0,1,2,3].map(()=>K.line('--va',{dashed:true})), dots = [0,1,2,3].map(()=>K.point('--va',0.12));
+    const nA = K.arrow('--y',{thick:0.04}), lab = K.label('','--ink');
+    const corners = [V(-1.3,0,-0.7),V(1.3,0,-0.7),V(-1.3,0,0.7),V(1.3,0,0.7)];
+    return {update(p,t){
+      const span = 20, s = (t*p.speed) % (2*span), x = -10 + (s < span ? s : 2*span - s), dir = s < span ? 1 : -1;
+      let sumY = 0, sumN = V(); const hits = corners.map((c,i)=>{ const o = V(x + c.x, 8, c.z), h = cast(o, V(0,-1,0), 20, parts); const hp = h ? h.pos : V(o.x,0,o.z); sumY += hp.y; sumN.add(h ? h.normal : V(0,1,0)); rays[i].set(V(hp.x, hp.y + p.hover + 0.3, hp.z), hp); dots[i].position.copy(hp); return hp; });
+      const n = sumN.normalize(), h = sumY/4, pos = V(x, h + p.hover, 0);
+      const up = p.align ? n : V(0,1,0), fwd = V(dir,0,0), look = fwd.clone().sub(up.clone().multiplyScalar(fwd.dot(up))).normalize();
+      board.setCF(CF.lookAt(pos, pos.clone().add(look), up)); nA.set(pos.clone().add(up.clone().multiplyScalar(0.2)), n.clone().multiplyScalar(1.5));
+      lab.at(pos.clone().add(V(0,1.6,0))).text(`tilt ${f(Math.acos(Math.min(1,n.y))*180/Math.PI,0)}°`);
+      return {h, n};
+    }};
+  },
+  readout:(p,o)=>[['ground height (average)', f(o.h,2)],['average Normal', vs(o.n),'acc']],
+  code:(p,o)=>`local HOVER = ${f(p.hover)}
+local CORNERS = {
+    Vector3.new(-1.3, 0, -0.7), Vector3.new(1.3, 0, -0.7),
+    Vector3.new(-1.3, 0, 0.7),  Vector3.new(1.3, 0, 0.7),
+}
+
+RunService.Heartbeat:Connect(function()
+    local sumY, sumNormal, count = 0, Vector3.zero, 0
+    for _, offset in CORNERS do
+        local origin = board.CFrame:PointToWorldSpace(offset) + Vector3.new(0, 5, 0)
+        local result = workspace:Raycast(origin, Vector3.new(0, -20, 0), params)
+        if result then
+            sumY += result.Position.Y
+            sumNormal += result.Normal
+            count += 1
+        end
+    end
+    if count == 0 then return end           -- flying off an edge
+    local up = ${p.align ? '(sumNormal / count).Unit' : 'Vector3.yAxis'}
+    local pos = Vector3.new(board.Position.X, sumY / count + HOVER, board.Position.Z)
+    local forward = board.CFrame.LookVector
+    forward = (forward - up * forward:Dot(up)).Unit
+    board.CFrame = CFrame.lookAt(pos, pos + forward, up)
+end)`,
+  body:`<p>One ray down tells you the height under a single point. A hoverboard or car needs to know how the ground is <b>shaped</b> underneath it, so cast a ray down from each corner. The average hit height sets how high to float, and the average of the four normals is the tilt.</p>
+<p>Watch it cross the ramp, bump and hill. With tilting on, the board leans with the slope; with it off it stays level and its corners clip into the ramps. The dashed lines are the four rays.</p>`,
+  uses:[`<b>Hoverboards, hovercars and anti-gravity racers.</b>`,
+        `<b>Simple car suspension</b>: treat each ray as a spring for each wheel.`,
+        `<b>Characters and creatures</b> that walk on uneven ground with their bodies tilted.`],
+  gotchas:[`Exclude the vehicle itself from the rays, or they hit the board.`,
+           `Snapping straight to the new CFrame looks jittery on rough ground. Smooth it with <code>CFrame:Lerp</code> and <code>1 - math.exp(-k * dt)</code>.`]
+});
+}
 })();

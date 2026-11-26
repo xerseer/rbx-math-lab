@@ -304,4 +304,87 @@ local piece = TILES[maskAt(x, z)]:Clone()`,
   gotchas:[`When a tile is placed or removed, recompute the masks of its four neighbours too, not just the tile itself.`,
            `To include diagonals (for smooth terrain edges), use 8 bits instead of 4. That gives 256 cases, often trimmed down to 47 real shapes.`]
 });
+
+{
+const LAYERS = ['Players','Enemies','PlayerShots','EnemyShots'];
+const PRESETS = {
+  coop:{label:'Co-op shooter', masks:[2|8, 1|2|4, 2, 1]},
+  pvp:{label:'Free for all', masks:[1|2|4|8, 1|2|4|8, 1|2, 1|2]},
+  ghost:{label:'Players are ghosts', masks:[0, 2|4, 2, 0]},
+};
+
+demo({
+  id:'bw-layers', title:'Collision layers with masks', short:'bit32.btest(mask, layer)', sig:'canHit = bit32.btest(MASKS[attacker], LAYER[target])',
+  view:{theta:0, phi:0.9, r:16, ty:0.5, tx:1}, env:'grid',
+  params:[S('preset','Rules',Object.entries(PRESETS).map(([k,v])=>[k,v.label]),'coop'), S('a','Attacker',LAYERS.map((n,i)=>[String(i),n]),'2'), S('t','Target',LAYERS.map((n,i)=>[String(i),n]),'1')],
+  setup(K){
+    const on = K.mat('--accent'), off = K.mat('--part',{opacity:0.3}), cells = [];
+    for (let r=0;r<4;r++){ K.label(LAYERS[r],'--ink','big').at(V(-1.6,0.3,-3+r*2)).el.style.translate = '-50% 0';
+      for (let c=0;c<4;c++){ const m = K.add(new THREE.Mesh(G.box, off)); m.position.set(c*2+0.5, 0.3, -3+r*2); cells.push(m); } }
+    for (let c=0;c<4;c++) K.label(LAYERS[c] + ` (${1<<c})`,'--muted').at(V(c*2+0.5, 0.4, -4.6));
+    K.label('can hit →','--muted').at(V(-1.6,0.4,-4.6)).el.style.translate = '-50% 0';
+    const sel = K.ring(0.9,'--vb',{y:0.04}), masks = [0,1,2,3].map(r=>K.label('','--accent').at(V(8.6,0.3,-3+r*2)));
+    masks.forEach(L=>L.el.style.translate = '50% 0');
+    return {update(p){
+      const M = PRESETS[p.preset].masks, a = +p.a, t = +p.t;
+      cells.forEach((m,i)=>{ const r = Math.floor(i/4), c = i%4, lit = (M[r]>>c)&1; m.material = lit ? on : off; m.scale.set(1.4, lit ? 0.9 : 0.25, 1.4); m.position.y = lit ? 0.45 : 0.13; });
+      M.forEach((v,r)=>masks[r].text(`mask ${v}`));
+      sel.position.set(t*2+0.5, 0, -3+a*2);
+      return {M, can: ((M[a]>>t)&1) === 1};
+    }};
+  },
+  readout:(p,o)=>[['MASKS.'+LAYERS[+p.a], `${o.M[+p.a]} (0b${o.M[+p.a].toString(2).padStart(4,'0')})`],['LAYER.'+LAYERS[+p.t], String(1 << +p.t)],['can hit?', String(o.can), o.can ? 'ok' : 'bad']],
+  code:(p,o)=>`local LAYER = { Players = 1, Enemies = 2, PlayerShots = 4, EnemyShots = 8 }
+
+-- what each layer is allowed to hit (${PRESETS[p.preset].label})
+local MASKS = {
+${LAYERS.map((n,i)=>`    ${n} = ${o.M[i]},`).join('\n')}
+}
+
+local function canHit(attackerLayer, targetLayer)
+    return bit32.btest(MASKS[attackerLayer], LAYER[targetLayer])
+end
+
+print(canHit("${LAYERS[+p.a]}", "${LAYERS[+p.t]}"))   --> ${o.can}`,
+  body:`<p>Give every kind of object a <b>layer</b>, one bit each. Then give every layer a <b>mask</b>: the bits of the layers it's allowed to hit. Checking a hit is one <code>btest</code>: is the target's bit inside the attacker's mask?</p>
+<p>Each row of the grid is one layer's mask. Switch the rule preset and whole rows change, without touching any hit code. Pick an attacker and a target to see the check for that pair (pink ring).</p>`,
+  uses:[`<b>Friendly fire rules</b>: player bullets ignore players in co-op, hit them in PvP.`,
+        `<b>Game modes</b> that swap rules by swapping one table of masks.`,
+        `<b>Raycast filtering</b> on your own tags, alongside Roblox's collision groups.`],
+  gotchas:[`Roblox physics has its own system for this: <b>collision groups</b> with <code>PhysicsService:CollisionGroupSetCollidable</code>. Use masks like these for your own hit logic.`,
+           `A mask is one-way. If enemies should hit players too, set the bit in both rows.`]
+});
+
+demo({
+  id:'bw-signed', title:'Negative numbers in bit32', short:'two\'s complement', sig:'bit32 sees −1 as 4294967295 (all 32 bits on)',
+  view:{theta:0, phi:1.25, r:19, ty:1.5}, env:'grid',
+  params:[R('v','Value',-300,300,1,-6)],
+  setup(K){
+    const row = bitRow(K, 16, 1, {gap:1.05, size:0.8, index:true, colorOf:b=>b===15?'--vb':'--accent'});
+    K.label('… bits 16–31 copy the top bit','--muted').at(V(-9.6,2.2,0));
+    return {update(p){ const u = p.v >>> 0; row.set(u & 0xFFFF); row.valL.text(String(u)); return {u, back: u >= 2**31 ? u - 2**32 : u}; }};
+  },
+  readout:(p,o)=>[['as unsigned 32-bit', String(o.u),'acc'],['hex', '0x'+o.u.toString(16).toUpperCase().padStart(8,'0')],['converted back', String(o.back)],['lowest 8 bits', String(o.u & 255)]],
+  code:(p,o)=>`local n = ${p.v}
+
+print(bit32.band(n, 0xFFFFFFFF))   --> ${o.u}   (bit32 always returns 0 .. 4294967295)
+print(bit32.band(n, 0xFF))         --> ${o.u & 255}   (lowest 8 bits)
+
+-- turn a bit32 result back into a signed number
+local function toSigned(u)
+    if u >= 2 ^ 31 then
+        return u - 2 ^ 32
+    end
+    return u
+end
+print(toSigned(bit32.band(n, 0xFFFFFFFF)))   --> ${o.back}`,
+  body:`<p>Computers store negative numbers in <b>two's complement</b>: −1 is all bits on, −2 is all on except the last, and so on. The top bit (pink) works as the sign. To negate a number, flip every bit and add 1.</p>
+<p><code>bit32</code> always hands back a number from 0 to 4,294,967,295, so negative inputs come back as huge positive values. That's not wrong, it's the same bits read as unsigned. Slide below zero and watch the left-hand bits fill up; convert back by subtracting 2³² when the top bit is set.</p>`,
+  uses:[`<b>Reading signed values</b> from packed data, such as an X offset that can be negative.`,
+        `<b>Debugging</b> "why is my bit32 result 4 billion?"`,
+        `<b>Storing negatives in a field</b>: add an offset first (x + 128 for −128…127) so the packed value stays positive.`],
+  gotchas:[`<code>bit32.bnot(5)</code> is 4294967290, not −6. Mask or convert the result.`,
+           `The <code>buffer</code> library has signed reads and writes (<code>buffer.readi16</code>, <code>buffer.writei32</code>) that handle this for you.`]
+});
+}
 })();

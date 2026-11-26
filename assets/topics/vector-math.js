@@ -388,4 +388,131 @@ end`,
   gotchas:[`<code>direction</code> and <code>n</code> should both be unit vectors. Raycast normals already are.`,
            `Start the next ray a tiny bit off the surface (<code>result.Position + n * 0.01</code>) or it can hit the same wall again straight away.`]
 });
+
+{
+const {V, D2R, f, vs, CF, R, S, T, clamp} = Lab;
+
+function intercept(S0, T0, Vt, s){
+  const d = T0.clone().sub(S0), a = Vt.dot(Vt) - s*s, b = 2*d.dot(Vt), c = d.dot(d);
+  if (Math.abs(a) < 1e-6){ const t = -c/b; return t > 0 ? t : null; }
+  const disc = b*b - 4*a*c; if (disc < 0) return null;
+  const r = Math.sqrt(disc), t1 = (-b - r)/(2*a), t2 = (-b + r)/(2*a);
+  const lo = Math.min(t1,t2), hi = Math.max(t1,t2); const t = lo > 0 ? lo : hi; return t > 0 ? t : null;
+}
+
+demo({
+  id:'vec-lead', title:'Leading a moving target', short:'solve for intercept time', sig:'|targetPos + targetVel·t − shooterPos| = bulletSpeed·t', time:true,
+  view:{theta:0.1, phi:0.55, r:28, ty:0, tz:-1},
+  params:[R('vt','Target speed',2,20,0.5,9,' studs/s'), R('dir','Target direction',-60,60,5,0,'°'), R('bs','Bullet speed',8,60,1,24,' studs/s'), R('tx','Target start X',-10,4,0.5,-8)],
+  setup(K){
+    const S0 = V(0,1,9); K.part(V(1.2,2,1)).position.set(0,1,9.4);
+    const tg = K.part(V(1.2,1.2,1.2),'--vb',{front:false}), bl = K.point('--accent',0.22), bn = K.point('--bad',0.18);
+    const path = K.line('--vb',{dashed:true}), aimL = K.line('--accent',{dashed:true}), naiveL = K.line('--bad',{dashed:true, opacity:0.6});
+    const aimR = K.ring(0.9,'--accent',{y:0.04}), la = K.label('aim here','--accent','big'), lt = K.label('','--vb');
+    return {update(p,t){
+      const T0 = V(p.tx,1,-6), Vt = V(Math.cos(p.dir*D2R),0,-Math.sin(p.dir*D2R)).multiplyScalar(p.vt);
+      const ti = intercept(S0, T0, Vt, p.bs), A = ti ? T0.clone().addScaledVector(Vt, ti) : null;
+      const tn = T0.distanceTo(S0)/p.bs, miss = Vt.length()*tn;
+      const period = (ti || tn) + 1.2, tau = t % period;
+      tg.position.copy(T0.clone().addScaledVector(Vt, Math.min(tau, (ti||tn)+0.6)));
+      path.set(T0, T0.clone().addScaledVector(Vt, (ti||tn)+1));
+      naiveL.set(S0, T0); const dn = T0.clone().sub(S0).normalize(); bn.position.copy(S0.clone().addScaledVector(dn, p.bs*Math.min(tau, tn+0.3)));
+      bl.visible = !!A; aimR.visible = !!A; aimL.visible = !!A; la.show(!!A);
+      if (A){ const da = A.clone().sub(S0).normalize(); bl.position.copy(S0.clone().addScaledVector(da, p.bs*Math.min(tau, ti))); aimL.set(S0, A); aimR.position.set(A.x,0,A.z); la.at(A.clone().add(V(0,1.1,0))); }
+      lt.at(tg.position.clone().add(V(0,1.1,0))).text(A ? 'target' : 'target (too fast to catch)');
+      return {ti, A, miss, tn};
+    }};
+  },
+  readout:(p,o)=>[['intercept time', o.ti ? f(o.ti,2)+' s' : 'none: bullet too slow', o.ti ? 'acc' : 'bad'],['aim point', o.A ? vs(o.A) : '-'],['aiming straight at it misses by', f(o.miss,1)+' studs','bad']],
+  code:(p,o)=>`local function interceptTime(shooterPos, targetPos, targetVel, bulletSpeed)
+    local d = targetPos - shooterPos
+    local a = targetVel:Dot(targetVel) - bulletSpeed ^ 2
+    local b = 2 * d:Dot(targetVel)
+    local c = d:Dot(d)
+    if math.abs(a) < 1e-6 then                -- same speed: straight-line case
+        local t = -c / b
+        return t > 0 and t or nil
+    end
+    local disc = b * b - 4 * a * c
+    if disc < 0 then return nil end           -- it can never be caught
+    local r = math.sqrt(disc)
+    local t1, t2 = (-b - r) / (2 * a), (-b + r) / (2 * a)
+    local t = math.min(t1, t2) > 0 and math.min(t1, t2) or math.max(t1, t2)
+    return t > 0 and t or nil
+end
+
+local t = interceptTime(muzzle.Position, target.Position, target.AssemblyLinearVelocity, ${p.bs})
+if t then                                      -- ${o.ti ? f(o.ti,2)+' s' : 'nil right now'}
+    local aim = target.Position + target.AssemblyLinearVelocity * t
+    fireBullet((aim - muzzle.Position).Unit * ${p.bs})
+end`,
+  body:`<p>Aim straight at a moving target and the bullet arrives where the target <i>was</i>. To hit it, aim where it <b>will be</b> when the bullet gets there. That's a meeting-point problem: find the time <code>t</code> when the target's position equals the distance the bullet can cover.</p>
+<p>Writing that out gives a quadratic equation, solved with the usual formula. The smallest positive answer is the intercept time, and <code>targetPos + targetVel * t</code> is the aim point. The red shot aims at the target's current spot and misses; the orange one leads it. Make the target faster than the bullet and sometimes there's no answer at all.</p>`,
+  uses:[`<b>Turrets and AI gunners</b> that hit moving players.`,
+        `<b>Auto-aim and aim assist.</b>`,
+        `<b>Passing a ball</b> to a running teammate.`],
+  gotchas:[`This assumes the target keeps a straight line at a steady speed. Players dodge, so AI that always leads perfectly feels unfair. Add a little error.`,
+           `For bullets that drop with gravity, solve for the flat aim first, then add the drop separately.`]
+});
+
+demo({
+  id:'vec-steer', title:'Steering: seek and arrive', short:'desired − velocity', sig:'steer = (desired − velocity), limited to maxForce', time:true,
+  view:{theta:0.0, phi:0.45, r:26, ty:0},
+  params:[S('mode','Behaviour',[['arrive','Arrive (slow down near target)'],['seek','Seek (full speed)']],'arrive'), R('maxSpeed','Max speed',4,20,0.5,10), R('maxForce','Turning force',2,40,1,12), R('slowR','Slow-down radius',1,8,0.5,4), T('moving','Target moves',true)],
+  setup(K){
+    const agent = K.part(V(1,0.8,1.6),'--accent'), tg = K.point('--vb',0.3), slow = K.ring(1,'--vb',{dashed:true, y:0.04});
+    const aV = K.arrow('--va',{thick:0.05}), aD = K.arrow('--vb',{thick:0.04}), aS = K.arrow('--accent',{thick:0.05}), trail = K.line('--accent',{max:160, opacity:0.45});
+    const lv = K.label('velocity','--va'), ld = K.label('desired','--vb'), ls = K.label('steer','--accent');
+    const pos = V(-8,0.6,6), vel = V(4,0,0), hist = []; let last = 0, acc = 0, tick = 0;
+    return {update(p,t){
+      let dt = t - last; last = t; if (dt < 0 || dt > 0.25) dt = 0; acc += dt;
+      const tgt = p.moving ? V(Math.sin(t*0.45)*8, 0.6, Math.sin(t*0.9)*5) : V(6,0.6,-4);
+      let desired = V(), steer = V();
+      while (acc >= 1/120){ acc -= 1/120; const h = 1/120;
+        const off = tgt.clone().sub(pos); off.y = 0; const d = off.length();
+        const sp = p.mode==='arrive' && d < p.slowR ? p.maxSpeed*d/p.slowR : p.maxSpeed;
+        desired = d > 1e-4 ? off.multiplyScalar(sp/d) : V();
+        steer = desired.clone().sub(vel); if (steer.length() > p.maxForce) steer.setLength(p.maxForce);
+        vel.addScaledVector(steer, h); if (vel.length() > p.maxSpeed) vel.setLength(p.maxSpeed); pos.addScaledVector(vel, h);
+        if (++tick % 4 === 0){ hist.push(pos.clone()); if (hist.length > 160) hist.shift(); }
+      }
+      tg.position.copy(tgt); slow.scale.set(p.slowR,1,p.slowR); slow.position.set(tgt.x,0,tgt.z); slow.visible = p.mode==='arrive';
+      if (vel.length() > 0.05) agent.setCF(CF.lookAt(pos, pos.clone().add(vel))); else agent.position.copy(pos);
+      const up = V(0,0.8,0); aV.set(pos.clone().add(up), vel.clone().multiplyScalar(0.3)); aD.set(pos.clone().add(up), desired.clone().multiplyScalar(0.3)); aS.set(pos.clone().add(up), steer.clone().multiplyScalar(0.3));
+      lv.at(pos.clone().add(up).addScaledVector(vel,0.33)); ld.at(pos.clone().add(up).addScaledVector(desired,0.33).add(V(0,0.4,0))); ls.at(pos.clone().add(up).addScaledVector(steer,0.33).add(V(0,-0.4,0)));
+      if (hist.length > 1) trail.set(hist);
+      return {speed:vel.length(), dist:tgt.distanceTo(pos)};
+    }};
+  },
+  readout:(p,o)=>[['speed', f(o.speed,1)+' studs/s','acc'],['distance to target', f(o.dist,1)]],
+  code:(p,o)=>`local MAX_SPEED, MAX_FORCE, SLOW_RADIUS = ${f(p.maxSpeed)}, ${f(p.maxForce)}, ${f(p.slowR)}
+local velocity = Vector3.zero
+
+RunService.Heartbeat:Connect(function(dt)
+    local offset = (target.Position - npc.Position) * Vector3.new(1, 0, 1)
+    local distance = offset.Magnitude
+    if distance < 0.01 then return end
+
+    local speed = MAX_SPEED
+${p.mode==='arrive' ? `    if distance < SLOW_RADIUS then
+        speed = MAX_SPEED * distance / SLOW_RADIUS   -- arrive: ease off near the target
+    end
+` : ''}    local desired = offset / distance * speed
+    local steer = desired - velocity
+    if steer.Magnitude > MAX_FORCE then
+        steer = steer.Unit * MAX_FORCE
+    end
+
+    velocity += steer * dt
+    npc.CFrame = CFrame.lookAt(npc.Position + velocity * dt, npc.Position + velocity * dt * 2)
+end)`,
+  body:`<p>Pointing straight at the target every frame makes movement look robotic: instant turns, instant stops. <b>Steering</b> gives the agent momentum. Work out the velocity you'd <i>like</i> (desired), subtract the velocity you <i>have</i>, and push a limited amount in that direction each frame.</p>
+<p>The limit on the push (turning force) is what makes curves: lower it and the agent swings wide like a car. <b>Arrive</b> also shrinks the desired speed inside a radius, so it glides to a stop instead of overshooting and circling. Switch to Seek with the target still to see it orbit.</p>`,
+  uses:[`<b>Homing missiles</b> that curve instead of snapping.`,
+        `<b>Animals, birds and fish</b> with natural-looking movement.`,
+        `<b>Vehicles driven by AI</b> along waypoints.`],
+  gotchas:[`Apply the steering with <code>dt</code>, or the agent turns faster at higher frame rates.`,
+           `Add more behaviours by summing steering forces: seek the target, flee from danger, separate from neighbours.`]
+});
+}
 })();

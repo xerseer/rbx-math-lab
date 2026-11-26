@@ -392,4 +392,105 @@ sound.Volume = 1 - t                                             --> ${f(o.vol)}
   gotchas:[`Without a clamp, values outside the input range go past the output range (volume 1.5, or −0.3).`,
            `If a equals b, inverse lerp divides by zero. Make sure the two ends differ.`]
 });
+
+{
+demo({
+  id:'m-spring', title:'Springs: bouncy follow', short:'force = −k·x − c·v', sig:'acceleration = −stiffness·(x − goal) − damping·velocity', time:true,
+  view:{theta:0.0, phi:1.1, r:20, ty:3.5},
+  params:[R('k','Stiffness',10,400,5,120), R('zeta','Damping ratio',0.05,1.5,0.05,0.3), R('gap','Goal jump',2,7,0.5,5)],
+  setup(K){
+    const goal = K.point('--vb',0.3), box = K.part(V(1.2,1.2,1.2),'--accent',{front:false}), spring = K.line('--muted',{max:26}), graph = K.line('--accent',{max:300, opacity:0.7});
+    K.line('--muted',{dashed:true}).set(V(-8,1,-3),V(8,1,-3)); K.label('6 s ago ↑','--muted').at(V(-8.6,7,-3)); K.label('now','--muted').at(V(-8.6,1,-3)); K.label('position over time','--muted').at(V(0,7.6,-3));
+    const gl = K.label('goal','--vb'); let x = 0, v = 0, last = 0, acc = 0, sub = 0; const hist = [];
+    return {update(p,t){
+      let dt = t - last; last = t; if (dt < 0 || dt > 0.25) dt = 0; acc += dt;
+      const goalX = Math.floor(t/2.5) % 2 ? p.gap : -p.gap, c = 2*p.zeta*Math.sqrt(p.k);
+      while (acc >= 1/240){ acc -= 1/240; const a = -p.k*(x - goalX) - c*v; v += a/240; x += v/240; if (++sub % 8 === 0){ hist.push(x); if (hist.length > 180) hist.shift(); } }
+      goal.position.set(goalX,1,0); gl.at(V(goalX,1.6,0)); box.position.set(x,1,0);
+      const pts = []; for (let i=0;i<=25;i++){ const s = i/25; pts.push(V(goalX + (x-goalX)*s, 1 + (i>0&&i<25 ? (i%2?0.35:-0.35) : 0), 0)); } spring.set(pts);
+      if (hist.length > 1) graph.set(hist.map((hx,i)=>V(hx, 1 + (hist.length-1-i)/30, -3)));
+      return {c, zeta:p.zeta, x, v};
+    }};
+  },
+  readout:(p,o)=>[['damping c = 2ζ√k', f(o.c,1)],['behaviour', o.zeta < 0.95 ? 'bouncy (underdamped)' : o.zeta <= 1.05 ? 'fastest, no bounce (critical)' : 'sluggish (overdamped)','acc'],['velocity', f(o.v,1)]],
+  code:(p,o)=>`local STIFFNESS = ${p.k}
+local DAMPING = 2 * ${f(p.zeta)} * math.sqrt(STIFFNESS)   -- damping ratio ${f(p.zeta)} → ${f(o.c,1)}
+
+local position, velocity = 0, 0
+RunService.RenderStepped:Connect(function(dt)
+    local force = -STIFFNESS * (position - goal) - DAMPING * velocity
+    velocity += force * dt
+    position += velocity * dt
+    frame.Position = UDim2.fromScale(0.5 + position / 100, 0.5)
+end)
+-- works the same with Vector3 positions and velocities`,
+  body:`<p>A spring pulls toward the goal harder the further away it is (<b>stiffness</b>), while friction slows it down (<b>damping</b>). Step those two forces every frame and you get motion with weight: it overshoots, wobbles and settles.</p>
+<p>The <b>damping ratio</b> is the easiest knob. Below 1 it bounces, exactly 1 arrives as fast as possible without overshooting, above 1 it creeps in slowly. The trace behind shows the position over time: the wobble you see is the ratio at work.</p>`,
+  uses:[`<b>Juicy UI</b>: buttons that pop and settle, menus that wobble into place.`,
+        `<b>Cameras</b> that lag behind and catch up with a little bounce.`,
+        `<b>Weapon sway, antenna wobble and jelly effects.</b>`],
+  gotchas:[`Very stiff springs with big frame times can blow up. Split <code>dt</code> into smaller steps when stiffness is high.`,
+           `Unlike lerp smoothing, a spring keeps velocity, so it reacts naturally when the goal moves mid-flight.`]
+});
+
+demo({
+  id:'m-growth', title:'Level curves: XP per level', short:'base · growth^(level − 1)', sig:'xpNeeded(level) = base * growth ^ (level - 1)   ·   level from XP with math.log',
+  view:{theta:0.0, phi:1.25, r:24, ty:4}, env:'grid',
+  params:[S('curve','Curve',[['exp','Exponential'],['poly','Power (level ^ p)'],['lin','Linear']],'exp'), R('base','XP for level 2',50,500,10,100), R('g','Growth per level',1.03,1.4,0.01,1.15), R('pw','Power',1.1,3,0.1,1.6), R('xp','Player total XP',0,100000,100,12000)],
+  setup(K){
+    const bars = Array.from({length:30}, ()=>K.add(new THREE.Mesh(G.box, K.mat('--part'))));
+    const on = K.mat('--accent'), off = K.mat('--part'), next = K.mat('--vb');
+    K.label('level 1','--muted').at(V(-10,-0.5,0)); K.label('level 30','--muted').at(V(10,-0.5,0));
+    const lt = K.label('','--muted'), lc = K.label('','--accent','big');
+    return {update(p){
+      const need = L=> p.curve==='exp' ? p.base*Math.pow(p.g, L-1) : p.curve==='poly' ? p.base*Math.pow(L, p.pw) : p.base*L;
+      const arr = []; for (let L=1;L<=30;L++) arr.push(need(L)); const mx = arr[29];
+      let total = 0, level = 1; for (let L=1;L<=30;L++){ if (total + arr[L-1] <= p.xp){ total += arr[L-1]; level = L+1; } else break; }
+      level = Math.min(level, 31);
+      arr.forEach((v,i)=>{ const h = Math.max(0.03, v/mx*8), m = bars[i]; m.scale.set(0.5,h,0.5); m.position.set(-10 + i*20/29, h/2, 0);
+        m.material = i+1 < level ? on : i+1 === level ? next : off; });
+      lt.at(V(10, 8.6, 0)).text(`${Math.round(mx).toLocaleString()} XP`);
+      const cb = bars[Math.min(level,30)-1]; lc.at(cb.position.clone().setY(cb.scale.y + 0.7)).text(level > 30 ? 'max level' : `level ${level}`);
+      const toNext = level <= 30 ? arr[level-1] - (p.xp - total) : 0;
+      return {level, toNext, mx, sum30:arr.reduce((a,b)=>a+b,0), l2:arr[0]};
+    }};
+  },
+  readout:(p,o)=>[['player level', o.level > 30 ? '31 (max)' : String(o.level),'acc'],['XP to next level', o.level > 30 ? '-' : Math.round(o.toNext).toLocaleString()],['XP for the last level', Math.round(o.mx).toLocaleString()],['total XP for level 31', Math.round(o.sum30).toLocaleString()]],
+  code:(p,o)=>p.curve==='exp' ? `local BASE, GROWTH = ${p.base}, ${f(p.g)}
+
+local function xpToNext(level)               -- XP needed to go from level to level + 1
+    return BASE * GROWTH ^ (level - 1)
+end
+
+-- total XP to reach a level, and the reverse (no loop needed)
+local function totalXpFor(level)
+    return BASE * (GROWTH ^ (level - 1) - 1) / (GROWTH - 1)
+end
+local function levelFromXp(xp)
+    return math.floor(math.log(xp * (GROWTH - 1) / BASE + 1) / math.log(GROWTH)) + 1
+end
+print(levelFromXp(${p.xp}))   --> ${Math.min(o.level,31)}` : `local BASE${p.curve==='poly' ? `, POWER = ${p.base}, ${f(p.pw)}` : ` = ${p.base}`}
+
+local function xpToNext(level)
+    return ${p.curve==='poly' ? 'math.floor(BASE * level ^ POWER)' : 'BASE * level'}
+end
+
+local function levelFromXp(xp)
+    local level = 1
+    while xp >= xpToNext(level) do
+        xp -= xpToNext(level)
+        level += 1
+    end
+    return level
+end
+print(levelFromXp(${p.xp}))   --> ${Math.min(o.level,31)}`,
+  body:`<p>How much XP each level costs decides how a game feels over weeks. <b>Linear</b> curves get boring because the reward never changes. <b>Exponential</b> curves multiply by the same growth each level: fast early levels, then a long climb. <b>Power</b> curves sit in between.</p>
+<p>Each bar is the XP needed for one level. Drag the player's total XP and watch which level they reach. Even a 1.15 growth makes level 30 cost about 57 times more than level 2. For exponential curves, <code>math.log</code> turns total XP straight back into a level without a loop.</p>`,
+  uses:[`<b>Player levels, pet levels and battle passes.</b>`,
+        `<b>Upgrade prices</b> in tycoons and simulators (cost × 1.15 each purchase).`,
+        `<b>Enemy health scaling</b> by wave.`],
+  gotchas:[`Exponential costs grow very fast. Check the last level's cost before shipping, or players hit a wall.`,
+           `Round costs (<code>math.floor</code>) before showing them, and do the maths on the server.`]
+});
+}
 })();

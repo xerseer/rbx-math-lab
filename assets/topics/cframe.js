@@ -413,4 +413,89 @@ weld.Parent = shield
   gotchas:[`If you only need "stay where it is now", use a <code>WeldConstraint</code>. It records the current offset for you, with no C0 or C1.`,
            `C0 and C1 are in each part's <b>own</b> space. Mixing them up flips the offset to the wrong side.`]
 });
+
+{
+const {THREE, V, UP, D2R, f, vs, lookOf, CF, R, S, T} = Lab;
+
+demo({
+  id:'cf-localvel', title:'Local velocity: drift and strafe', short:'cf:VectorToObjectSpace(vel)', sig:'cf:VectorToObjectSpace(velocity)  →  velocity in the part\'s own axes',
+  view:{theta:0.0, phi:0.45, r:18, ty:0},
+  params:[R('yaw','Car facing (+ = left)',-180,180,5,0,'°'), R('vdir','Travel direction (+ = left)',-180,180,5,30,'°'), R('speed','Speed',0,60,1,40,' studs/s')],
+  setup(K){
+    const car = K.part(V(2,0.9,4)); K.axes(car, 2.6, {names:false, thick:0.035});
+    const aV = K.arrow('--accent',{thick:0.07}), aF = K.arrow('--z',{thick:0.05}), aS = K.arrow('--x',{thick:0.05}), d1 = K.line('--muted',{dashed:true}), d2 = K.line('--muted',{dashed:true});
+    const lv = K.label('velocity','--accent','big'), lf = K.label('','--z'), ls = K.label('','--x'), smokeL = K.label('tyre smoke!','--muted');
+    const smoke = [0,1,2,3].map(()=>K.point('--muted',0.35,{opacity:0.35}));
+    return {update(p,t){
+      const yaw = p.yaw*D2R, cf = CF.mul(CF.new(0,0.6,0), CF.angles(0,yaw,0)); car.setCF(cf);
+      const v = lookOf(p.vdir*D2R).multiplyScalar(p.speed), look = lookOf(yaw), right = V(Math.cos(yaw),0,-Math.sin(yaw));
+      const fwd = v.dot(look), side = v.dot(right), O = V(0,1.6,0), s = 0.12;
+      aV.set(O, v.clone().multiplyScalar(s)); aF.set(O, look.clone().multiplyScalar(fwd*s)); aS.set(O, right.clone().multiplyScalar(side*s));
+      d1.set(O.clone().addScaledVector(look, fwd*s), O.clone().addScaledVector(v, s)); d2.set(O.clone().addScaledVector(right, side*s), O.clone().addScaledVector(v, s));
+      lv.at(O.clone().addScaledVector(v, s*1.08).add(V(0,0.4,0))); lf.at(O.clone().addScaledVector(look, fwd*s*0.55).add(V(0,0.5,0))).text(`forward ${f(fwd,1)}`); ls.at(O.clone().addScaledVector(right, side*s*0.55).add(V(0,-0.5,0))).text(`sideways ${f(side,1)}`);
+      const drifting = Math.abs(side) > 8;
+      smoke.forEach((m,i)=>{ m.visible = drifting; const back = CF.pt(cf, V(i<2?-0.9:0.9, -0.3, 1.6 + (i%2)*0.9 + ((t*2+i*0.3)%1)*0.8)); m.position.copy(back); });
+      smokeL.show(drifting).at(CF.pt(cf, V(0,1,3.2)));
+      return {fwd, side, drift: Math.atan2(side, fwd)/D2R, drifting};
+    }};
+  },
+  readout:(p,o)=>[['forward speed  (-localV.Z)', f(o.fwd,1)],['sideways speed (localV.X)', f(o.side,1), o.drifting ? 'bad' : ''],['drift angle', f(o.drift,0)+'°','acc']],
+  code:(p,o)=>`local velocity = car.AssemblyLinearVelocity
+local localV = car.CFrame:VectorToObjectSpace(velocity)
+
+local forwardSpeed = -localV.Z     --> ${f(o.fwd,1)}   (-Z is forward)
+local sideSpeed = localV.X         --> ${f(o.side,1)}   (+ = sliding right)
+
+smoke.Enabled = math.abs(sideSpeed) > 8          -- ${o.drifting ? 'on' : 'off'}
+local driftAngle = math.deg(math.atan2(sideSpeed, forwardSpeed))   --> ${f(o.drift,0)}°
+
+-- characters: pick strafe / backpedal animations
+local moveLocal = root.CFrame:VectorToObjectSpace(humanoid.MoveDirection)`,
+  body:`<p>A velocity in world space says which way something moves on the map. Usually you care how it moves <b>relative to itself</b>: forwards, backwards, or sliding sideways. <code>VectorToObjectSpace</code> rotates the velocity into the part's own axes, ignoring its position.</p>
+<p>Then <code>-localV.Z</code> is the forward speed and <code>localV.X</code> is the sideways speed. Turn the car away from the direction it's travelling and the sideways part grows: that's a drift, and past 8 studs/s the tyres smoke.</p>`,
+  uses:[`<b>Drift and skid effects</b> for cars and karts.`,
+        `<b>Strafe animations</b>: walking left, right or backwards depending on local movement.`,
+        `<b>Tyre grip</b>: cancel some of the sideways velocity each frame to stop cars sliding like ice.`],
+  gotchas:[`<code>VectorToObjectSpace</code> is for directions. <code>PointToObjectSpace</code> would also subtract the position, which is wrong for a velocity.`,
+           `Forward is −Z, so negate Z to get a positive forward speed.`]
+});
+
+demo({
+  id:'cf-euler', title:'Reading angles back', short:'cf:ToEulerAnglesYXZ()', sig:'local rx, ry, rz = cf:ToEulerAnglesYXZ()',
+  view:{theta:0.7, phi:0.85, r:15, ty:1.5},
+  params:[R('yaw','Turn (Y)',-180,180,5,60,'°'), R('pitch','Tilt (X)',-89,89,1,20,'°'), R('roll','Roll (Z)',-180,180,5,0,'°')],
+  setup(K){
+    const part = K.part(V(2,1,3)); K.axes(part, 2.4, {names:false}); const sec = K.sector('--accent',0.2);
+    K.ring(4,'--muted',{y:0.03}); [['N',0],['W',90],['S',180],['E',-90]].forEach(([n,a])=>K.label(n,'--muted','big').at(lookOf(a*D2R).multiplyScalar(4.6).setY(0.2)));
+    const lh = K.label('','--accent','big');
+    return {update(p){
+      const cf = CF.mul(CF.new(0,2,0), CF.yxz(p.pitch*D2R, p.yaw*D2R, p.roll*D2R)); part.setCF(cf);
+      const eY = new THREE.Euler().setFromRotationMatrix(cf, 'YXZ'), eX = new THREE.Euler().setFromRotationMatrix(cf, 'XYZ');
+      const look = CF.look(cf), heading = Math.atan2(-look.x, -look.z);
+      sec.setSector(V(), heading/2, Math.abs(heading)/2, 3.6); lh.at(lookOf(heading).multiplyScalar(3.2).setY(0.3)).text(`heading ${f(heading/D2R,0)}°`);
+      return {eY, eX, heading};
+    }};
+  },
+  readout:(p,o)=>[['ToEulerAnglesYXZ', `${f(o.eY.x/D2R,0)}°, ${f(o.eY.y/D2R,0)}°, ${f(o.eY.z/D2R,0)}°`,'acc'],['ToEulerAnglesXYZ', `${f(o.eX.x/D2R,0)}°, ${f(o.eX.y/D2R,0)}°, ${f(o.eX.z/D2R,0)}°`],['heading from LookVector', f(o.heading/D2R,0)+'°']],
+  code:(p,o)=>`part.CFrame = CFrame.new(0, 2, 0) * CFrame.fromEulerAnglesYXZ(math.rad(${p.pitch}), math.rad(${p.yaw}), math.rad(${p.roll}))
+
+local rx, ry, rz = part.CFrame:ToEulerAnglesYXZ()
+print(math.deg(rx), math.deg(ry), math.deg(rz))   --> ${f(o.eY.x/D2R,0)}  ${f(o.eY.y/D2R,0)}  ${f(o.eY.z/D2R,0)}   (matches part.Orientation)
+
+local ax, ay, az = part.CFrame:ToEulerAnglesXYZ()
+print(math.deg(ax), math.deg(ay), math.deg(az))   --> ${f(o.eX.x/D2R,0)}  ${f(o.eX.y/D2R,0)}  ${f(o.eX.z/D2R,0)}   (same rotation, other numbers!)
+
+-- just the compass heading, ignoring tilt:
+local look = part.CFrame.LookVector
+local heading = math.deg(math.atan2(-look.X, -look.Z))   --> ${f(o.heading/D2R,0)}`,
+  body:`<p>Going from a CFrame back to angles is useful for saving, UI and snapping. <code>ToEulerAnglesYXZ</code> returns the turn, tilt and roll that rebuild it with <code>fromEulerAnglesYXZ</code>. It's the same order the Properties window uses for <code>Orientation</code>.</p>
+<p>The catch: one rotation can be written as many different sets of angles. Compare the two readouts. Both describe the exact same orientation, but the XYZ numbers look nothing like what you typed. Always read back in the same order you built with.</p>
+<p>If you only need the compass heading, <code>atan2</code> on the LookVector is simpler and doesn't care about tilt or roll.</p>`,
+  uses:[`<b>Compasses and minimaps</b>: the heading in degrees.`,
+        `<b>Saving rotations</b> to a DataStore as three numbers.`,
+        `<b>Snapping a placed object</b> to 90° steps: read the Y angle, round it, rebuild.`],
+  gotchas:[`Near a tilt of ±90°, turn and roll blend together (gimbal lock) and the numbers jump around.`,
+           `Angles come back in radians, between −π and π.`]
+});
+}
 })();

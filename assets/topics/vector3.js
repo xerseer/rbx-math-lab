@@ -310,4 +310,101 @@ print(isInside(${v3(V(p.tx,p.ty,p.tz))}))   --> ${o.inside}`,
   gotchas:[`This box is always lined up with the world axes. For a rotated area, convert the point with <code>zone.CFrame:PointToObjectSpace(p)</code> and compare against half the size.`,
            `For models, <code>model:GetBoundingBox()</code> returns a CFrame and a size for you.`]
 });
+
+{
+const {V, f, v3, vs, R, S, T, CF, mulberry32} = Lab;
+
+demo({
+  id:'vec-avg', title:'Averages: the centre of a group', short:'sum / count', sig:'(a + b + c) / 3   ·   weighted: Σ(p × w) / Σw',
+  view:{theta:0.4, phi:0.75, r:26, ty:0},
+  params:[R('n','Players',2,6,1,5), R('seed','Positions (seed)',1,50,1,9), R('w','Leader weight',1,6,0.5,1)],
+  setup(K){
+    const parts = Array.from({length:6}, ()=>K.part(V(1,2,1),'--va',{front:false}));
+    const lines = Array.from({length:6}, ()=>K.line('--muted',{dashed:true}));
+    const cen = K.point('--accent',0.35), lc = K.label('centre','--accent','big'), ll = K.label('leader','--vb','big');
+    const cam = K.part(V(1.2,0.8,1),'--ink'), cl = K.line('--accent',{dashed:true, opacity:0.6}); K.label('camera','--ink').at(V(0,8.2,14));
+    return {update(p){
+      const rng = mulberry32(p.seed*61); const P = parts.map(()=>V((rng()*2-1)*8, 1, (rng()*2-1)*7));
+      let sum = V(), tw = 0;
+      parts.forEach((m,i)=>{ const on = i < p.n; m.visible = on; lines[i].visible = on; if (!on) return; const w = i===0 ? p.w : 1;
+        m.position.copy(P[i]); m.tint(i===0 ? '--vb' : '--va'); sum.addScaledVector(P[i], w); tw += w; });
+      const c = sum.divideScalar(tw); cen.position.copy(c); lc.at(c.clone().add(V(0,0.7,0))); ll.at(P[0].clone().add(V(0,1.5,0)));
+      parts.forEach((m,i)=>{ if (i < p.n) lines[i].set(P[i], c); });
+      const camP = V(0,7,14); cam.setCF(CF.lookAt(camP, c)); cl.set(camP, c);
+      return {c, P:P.slice(0,p.n)};
+    }};
+  },
+  readout:(p,o)=>[['centre', vs(o.c),'acc'],['players', String(p.n)],['leader weight', f(p.w)]],
+  code:(p,o)=>p.w === 1 ? `local sum = Vector3.zero
+local count = 0
+for _, player in Players:GetPlayers() do
+    local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+    if root then
+        sum += root.Position
+        count += 1
+    end
+end
+
+local centre = sum / count               --> ${vs(o.c)}
+camera.CFrame = CFrame.lookAt(camera.CFrame.Position, centre)` : `-- weighted average: the leader counts ${f(p.w)}x
+local sum, totalWeight = Vector3.zero, 0
+for _, member in party do
+    local w = member == leader and ${f(p.w)} or 1
+    sum += member.Position * w
+    totalWeight += w
+end
+
+local centre = sum / totalWeight         --> ${vs(o.c)}`,
+  body:`<p>The average of some positions is their <b>centre</b>: add them all up and divide by how many there are. It works just like averaging numbers, on X, Y and Z at once.</p>
+<p>A <b>weighted</b> average lets some points pull harder. Give the leader (pink) more weight and the centre slides toward them. The camera on the right keeps looking at the centre, which is how party and spectator cameras frame a group.</p>`,
+  uses:[`<b>Group cameras</b> that keep every player in view.`,
+        `<b>Squad AI</b>: move toward the middle of the squad, or away from the middle of the enemies.`,
+        `<b>Smoothing</b>: average the last few positions of something jittery.`],
+  gotchas:[`Divide by the number you actually added, not <code>#players</code>, if some players have no character yet.`,
+           `An average of zero items divides by zero. Check the count first.`]
+});
+
+demo({
+  id:'vec-physics', title:'Velocity and gravity', short:'p0 + v0·t + ½·g·t²', sig:'position = p0 + v0 * t + 0.5 * g * t^2', time:true,
+  view:{theta:0.0, phi:1.15, r:30, ty:5, tx:4},
+  params:[R('speed','Launch speed',20,70,1,50,' studs/s'), R('angle','Launch angle',10,80,1,45,'°'), R('grav','workspace.Gravity',100,300,0.2,196.2)],
+  setup(K){
+    const P0 = V(-10,0.5,0), path = K.line('--accent',{max:121, opacity:0.55}), ball = K.point('--accent',0.35), va = K.arrow('--va',{thick:0.05});
+    const land = K.ring(0.8,'--vb',{y:0.04}), peakP = K.point('--muted',0.14), lp = K.label('','--muted'), ll = K.label('','--vb','big');
+    K.part(V(1,1,1),'--ink',{front:false}).position.copy(P0);
+    return {update(p,t){
+      const a = p.angle*Math.PI/180, v0 = V(Math.cos(a)*p.speed, Math.sin(a)*p.speed, 0), g = V(0,-p.grav,0);
+      const at = tt=>P0.clone().addScaledVector(v0,tt).addScaledVector(g,0.5*tt*tt);
+      const T = 2*v0.y/p.grav, range = v0.x*T, peak = v0.y*v0.y/(2*p.grav);
+      const pts = []; for (let i=0;i<=120;i++) pts.push(at(T*i/120)); path.set(pts);
+      const tau = Math.min(T, t % (T + 0.8)), pos = at(tau), vel = v0.clone().addScaledVector(g, tau);
+      ball.position.copy(pos); va.set(pos, vel.clone().multiplyScalar(0.08));
+      land.position.set(P0.x+range, 0, 0); ll.at(V(P0.x+range, 1, 0)).text(`lands ${f(range,1)} studs away`);
+      const pk = at(v0.y/p.grav); peakP.position.copy(pk); lp.at(pk.clone().add(V(0,0.6,0))).text(`peak ${f(peak,1)}`);
+      return {T, range, peak, vel};
+    }};
+  },
+  readout:(p,o)=>[['flight time', f(o.T,2)+' s'],['distance', f(o.range,1)+' studs','acc'],['peak height', f(o.peak,1)+' studs'],['velocity now', vs(o.vel)]],
+  code:(p,o)=>`local g = Vector3.new(0, -workspace.Gravity, 0)     -- ${f(p.grav,1)} studs/s²
+local v0 = Vector3.new(${f(Math.cos(p.angle*Math.PI/180)*p.speed)}, ${f(Math.sin(p.angle*Math.PI/180)*p.speed)}, 0)  -- ${p.speed} studs/s at ${p.angle}°
+
+-- where will it be after t seconds? (no physics engine needed)
+local function positionAt(p0, t)
+    return p0 + v0 * t + 0.5 * g * t * t
+end
+local flightTime = 2 * v0.Y / workspace.Gravity      --> ${f(o.T,2)}
+
+-- or step it yourself every frame
+velocity += g * dt
+position += velocity * dt`,
+  body:`<p>Velocity is how much position changes per second; gravity is how much velocity changes per second. Step both every frame (<code>velocity += g * dt</code>, then <code>position += velocity * dt</code>) and you have a working projectile.</p>
+<p>Because gravity is constant, there's also an exact formula for where it will be at any time. That lets you draw a <b>trajectory preview</b> or work out where it lands before throwing. Roblox's default <code>workspace.Gravity</code> is 196.2 studs/s².</p>
+<p>45° goes furthest on flat ground. Halve the gravity and everything flies twice as far and twice as high.</p>`,
+  uses:[`<b>Trajectory previews</b> for grenades, basketballs and catapults.`,
+        `<b>Custom projectiles</b> that don't use the physics engine (smoother and server-friendly).`,
+        `<b>Jump planning</b>: will this jump clear the gap?`],
+  gotchas:[`Unanchored parts already fall with <code>workspace.Gravity</code>. Only add gravity yourself for anchored or custom-moved objects.`,
+           `Large <code>dt</code> steps drift away from the exact formula. For accuracy, use the formula with total time instead of stepping.`]
+});
+}
 })();

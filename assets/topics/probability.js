@@ -390,4 +390,100 @@ end`,
            `Picking from a list: <code>list[math.random(1, #list)]</code>.`,
            `For a uniform direction in 3D, <code>rng:NextUnitVector()</code> does it for you.`]
 });
+
+{
+function prdStats(C, maxN=200){
+  let survive = 1, E = 0; const dist = [];
+  for (let n=1; n<=maxN && survive > 1e-12; n++){ const pn = Math.min(1, C*n), pf = survive*pn; dist[n] = pf; E += n*pf; survive *= 1-pn; }
+  return {E, dist};
+}
+function prdC(p){ let lo = 0, hi = p; for (let i=0;i<60;i++){ const mid=(lo+hi)/2; if (1/prdStats(mid).E < p) lo = mid; else hi = mid; } return (lo+hi)/2; }
+
+demo({
+  id:'pr-prd', title:'Rising chance: fairer crits', short:'chance = C × misses', sig:'chance this hit = C × (hits since last success)',
+  view:{theta:0.0, phi:1.25, r:24, ty:3.5}, env:'grid',
+  params:[R('p','Average crit chance',5,50,1,25,'%'), T('cmp','Compare with pure random',true)],
+  setup(K){
+    const N = 20; const a = Array.from({length:N}, ()=>bar(K,'--accent')), b = Array.from({length:N}, ()=>bar(K,'--part'));
+    K.label('1 hit','--muted').at(V(-9.5,-0.5,0)); K.label('20 hits','--muted').at(V(9.5,-0.5,0)); K.label('how many hits until the next crit','--muted').at(V(0,-1.2,0));
+    const la = K.label('rising chance','--accent','big'), lb = K.label('pure random','--muted','big');
+    return {update(p){
+      const q = p.p/100, Cc = prdC(q), {dist} = prdStats(Cc); let mx = 0;
+      const geo = n=>Math.pow(1-q,n-1)*q;
+      for (let n=1;n<=N;n++) mx = Math.max(mx, dist[n]||0, p.cmp ? geo(n) : 0);
+      for (let n=1;n<=N;n++){ const x = -9.5 + (n-1); a[n-1].setBar(x+0.18,0,0.34,(dist[n]||0)/mx*7); b[n-1].setBar(x-0.18,0,0.34,p.cmp ? geo(n)/mx*7 : 0); }
+      const peak = dist.reduce((bi,v,i)=>v>(dist[bi]||0)?i:bi,1);
+      la.at(V(-9.5+peak-1, (dist[peak]/mx)*7+0.7, 0)); lb.show(p.cmp).at(V(-9.5-0.18, geo(1)/mx*7+0.7, 0));
+      let surv = 1; for (let n=1;n<=10;n++) surv *= 1 - Math.min(1, Cc*n);
+      return {Cc, maxGap:Math.ceil(1/Cc), r10:Math.pow(1-q,10), p10:surv};
+    }};
+  },
+  readout:(p,o)=>[['C', f(o.Cc,4),'acc'],['most hits without a crit', `${o.maxGap} (random: unlimited)`],['10 misses in a row: random', f(o.r10*100,2)+'%','bad'],['10 misses in a row: rising', f(o.p10*100,4)+'%','ok']],
+  code:(p,o)=>`local C = ${f(o.Cc,5)}   -- tuned so crits still average ${p.p}%
+local rng = Random.new()
+local hitsSinceCrit = 0
+
+local function rollCrit()
+    hitsSinceCrit += 1
+    if rng:NextNumber() < C * hitsSinceCrit then
+        hitsSinceCrit = 0
+        return true
+    end
+    return false
+end
+-- chance goes ${f(o.Cc*100,1)}%, ${f(o.Cc*200,1)}%, ${f(o.Cc*300,1)}%... and is guaranteed by hit ${o.maxGap}`,
+  body:`<p>With a plain ${'25%'} crit, a player can go ten or more hits without one, and sometimes gets three in a row. Both feel bad. A <b>rising chance</b> starts low and grows a little with every miss, then resets when it lands.</p>
+<p>The bars show how many hits it takes to get the next crit. Pure random (grey) is spread out with a long tail. The rising version (orange) bunches up around the average and has a hard limit. The constant <code>C</code> is solved so the overall crit rate stays exactly the same; only the streaks change.</p>`,
+  uses:[`<b>Critical hits, dodges and procs</b> in RPGs and fighting games.`,
+        `<b>Rare drops</b> that feel fair without a visible pity counter.`,
+        `<b>Random events</b> like weather that shouldn't repeat too soon.`],
+  gotchas:[`Don't use the average chance as C. The rising version must start much lower to keep the same average.`,
+           `Track the counter per player and per ability, on the server.`]
+});
+
+demo({
+  id:'pr-events', title:'Random events per second', short:'1 − math.exp(−rate · dt)', sig:'chance this frame = 1 - math.exp(-eventsPerSecond * dt)',
+  view:{theta:0.0, phi:0.7, r:22, ty:0}, env:'grid',
+  params:[R('rate','Events per second',0.1,2,0.05,0.6), R('seed','Seed',1,99,1,5)],
+  setup(K){
+    const mesh = K.add(new THREE.InstancedMesh(G.box, new THREE.MeshLambertMaterial({color:0xffffff}), 600)); const dm = new THREE.Matrix4(), q = new THREE.Quaternion();
+    const rows = [['fixed chance @ 60 FPS',60,false,-3,'--bad'],['fixed chance @ 15 FPS',15,false,-1,'--bad'],['math.exp @ 60 FPS',60,true,1,'--accent'],['math.exp @ 15 FPS',15,true,3,'--accent']];
+    rows.forEach(r=>{ K.label(r[0], r[4], 'big').at(V(-10.6, 0.3, r[3])).el.style.translate = '-50% 0'; K.line('--muted',{opacity:0.5}).set(V(-10,0.02,r[3]),V(10,0.02,r[3])); });
+    const cnt = rows.map(r=>K.label('','--ink').at(V(10.8,0.3,r[3])));
+    cnt.forEach(L=>L.el.style.translate = '50% 0');
+    K.label('0 s','--muted').at(V(-10,0.2,4.4)); K.label('20 s','--muted').at(V(10,0.2,4.4));
+    let key = '', res = null;
+    return {update(p){
+      const k = p.rate+'|'+p.seed; if (k !== key){ key = k; let n = 0; const counts = [];
+        rows.forEach(([, fps, good, z, col], ri)=>{ const rng = mulberry32(p.seed*733 + ri*17), dt = 1/fps, ch = good ? 1-Math.exp(-p.rate*dt) : 1-Math.exp(-p.rate/60); let c = 0;
+          for (let i=0;i<20*fps;i++){ if (rng() < ch && n < 600){ dm.compose(V(-10 + i*dt, 0.3, z), q, V(0.18,0.6,0.6)); mesh.setMatrixAt(n, dm); mesh.setColorAt(n, C(col)); n++; c++; } }
+          counts.push(c); cnt[ri].text(String(c)); });
+        mesh.count = n; mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true; res = {counts};
+      }
+      return res;
+    }};
+  },
+  readout:(p,o)=>[['expected in 20 s', f(p.rate*20,1)],['fixed chance: 60 / 15 FPS', `${o.counts[0]} / ${o.counts[1]}`,'bad'],['math.exp: 60 / 15 FPS', `${o.counts[2]} / ${o.counts[3]}`,'ok']],
+  code:(p,o)=>`local EVENTS_PER_SECOND = ${f(p.rate)}   -- about ${f(p.rate*20,0)} every 20 seconds
+local rng = Random.new()
+
+RunService.Heartbeat:Connect(function(dt)
+    local chance = 1 - math.exp(-EVENTS_PER_SECOND * dt)   -- adjusts to the frame time
+    if rng:NextNumber() < chance then
+        spawnMeteor()
+    end
+end)
+
+-- the bug: a fixed chance per frame
+-- if rng:NextNumber() < ${f(1-Math.exp(-p.rate/60),4)} then ... end
+-- happens 4x less often for a player at 15 FPS than at 60 FPS`,
+  body:`<p>"A 1% chance every frame" sounds fine until you remember frames don't come at a steady rate. A player at 60 FPS rolls four times as often as one at 15 FPS, so they see four times as many events. Roblox servers also run at their own rate.</p>
+<p>Describe the event as a <b>rate</b> (so many per second) and convert it to a per-frame chance with <code>1 - math.exp(-rate * dt)</code>. Each row shows 20 seconds of events. The fixed-chance rows (red) disagree; the <code>math.exp</code> rows (orange) match each other and the expected count.</p>`,
+  uses:[`<b>Ambient events</b>: meteors, lightning, birds, random NPC chatter.`,
+        `<b>Status effects</b> like "10% chance per second to take burn damage".`,
+        `<b>Spawners</b> that should average a set number of spawns per minute.`],
+  gotchas:[`For events on a schedule, use a timer instead (<code>task.wait(5)</code>). Random rates are for things that should feel unpredictable.`,
+           `For very small <code>rate * dt</code>, the chance is almost exactly <code>rate * dt</code>, but <code>math.exp</code> stays correct at low frame rates too.`]
+});
+}
 })();

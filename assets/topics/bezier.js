@@ -310,4 +310,123 @@ end`,
   gotchas:[`Equal handle lengths also keep the speed smooth across the joint. Different lengths keep the direction but change the pace.`,
            `If you want a sharp corner on purpose, like a hairpin, break the line deliberately.`]
 });
+
+{
+const {UP, G, C} = Lab;
+
+demo({
+  id:'bz-closest', title:'Closest point on a curve', short:'sample, then refine', sig:'sample t = 0…1, keep the nearest, then narrow in around it',
+  view:{theta:0.4, phi:0.8, r:24, ty:2},
+  params:[R('px','Player X',-10,10,0.25,2), R('py','Player height',0,7,0.25,4.5), R('pz','Player Z',-8,8,0.25,2), R('snap','Grind snap distance',0.5,5,0.25,2.5)],
+  setup(K){
+    const P0 = V(-10,2,4), P1 = V(-3,6,-9), P2 = V(3,-1,9), P3 = V(10,3,-3);
+    const pts = []; for (let i=0;i<=120;i++) pts.push(cubic(P0,P1,P2,P3,i/120)); K.line('--ink',{max:121}).set(pts);
+    const tube = K.line('--accent',{max:121, opacity:0.35}); tube.set(pts.map(q=>q.clone().add(V(0,0.05,0))));
+    const sampleDots = Array.from({length:11}, (_,i)=>{ const m = K.point('--muted',0.08); m.position.copy(cubic(P0,P1,P2,P3,i/10)); return m; });
+    const pl = K.part(V(0.9,1.8,0.9),'--va',{front:false}), cp = K.point('--accent',0.2), dl = K.line('--ink',{dashed:true}), ghost = K.part(V(0.9,1.8,0.9),'--accent',{front:false, opacity:0.4});
+    const lt = K.label('','--accent','big'), lp = K.label('','--va');
+    return {update(p){
+      const P = V(p.px,p.py,p.pz); let best = 0, bd = Infinity;
+      for (let i=0;i<=50;i++){ const d = cubic(P0,P1,P2,P3,i/50).distanceToSquared(P); if (d < bd){ bd = d; best = i/50; } }
+      let lo = Math.max(0,best-0.02), hi = Math.min(1,best+0.02);
+      for (let k=0;k<30;k++){ const a = lo+(hi-lo)/3, b = hi-(hi-lo)/3; if (cubic(P0,P1,P2,P3,a).distanceToSquared(P) < cubic(P0,P1,P2,P3,b).distanceToSquared(P)) hi = b; else lo = a; }
+      const t = (lo+hi)/2, Cp = cubic(P0,P1,P2,P3,t), d = Cp.distanceTo(P), grind = d <= p.snap;
+      pl.position.copy(P); cp.position.copy(Cp); dl.set(P, Cp); ghost.visible = grind; if (grind) ghost.setCF(CF.lookAt(Cp.clone().add(V(0,0.9,0)), Cp.clone().add(V(0,0.9,0)).add(cubicTan(P0,P1,P2,P3,t))));
+      lt.at(Cp.clone().add(V(0,-0.6,0))).text(`t = ${f(t,3)}`); lp.at(P.clone().add(V(0,1.4,0))).text(grind ? `grinding (${f(d)} away)` : `${f(d)} studs away`);
+      return {t, d, grind, Cp};
+    }};
+  },
+  readout:(p,o)=>[['closest t', f(o.t,3),'acc'],['distance', f(o.d)],['grind?', o.grind ? 'yes, snap onto the rail' : 'no', o.grind ? 'ok' : '']],
+  code:(p,o)=>`local function closestT(point, p0, p1, p2, p3)
+    -- 1. coarse search: try 51 evenly spaced values of t
+    local bestT, bestDist = 0, math.huge
+    for i = 0, 50 do
+        local t = i / 50
+        local d = (cubicBezier(p0, p1, p2, p3, t) - point).Magnitude
+        if d < bestDist then bestT, bestDist = t, d end
+    end
+    -- 2. refine: narrow the window around the best guess
+    local lo, hi = math.max(0, bestT - 0.02), math.min(1, bestT + 0.02)
+    for _ = 1, 30 do
+        local a, b = lo + (hi - lo) / 3, hi - (hi - lo) / 3
+        if (cubicBezier(p0, p1, p2, p3, a) - point).Magnitude < (cubicBezier(p0, p1, p2, p3, b) - point).Magnitude then
+            hi = b
+        else
+            lo = a
+        end
+    end
+    return (lo + hi) / 2
+end
+
+local t = closestT(root.Position, p0, p1, p2, p3)   --> ${f(o.t,3)}
+local railPoint = cubicBezier(p0, p1, p2, p3, t)
+if (railPoint - root.Position).Magnitude < ${f(p.snap)} then
+    startGrinding(t)
+end`,
+  body:`<p>There's no neat formula for the closest point on a Bézier curve, so games search for it. First try a handful of t values spread along the curve (the grey dots) and keep the nearest. Then zoom in around that guess, cutting the window down until it's precise.</p>
+<p>The result is a t value, which tells you both <i>where</i> on the curve the player is and <i>how far along</i> it they are. Move the player close enough and they snap onto the rail, facing along it.</p>`,
+  uses:[`<b>Rail grinding and ziplines</b> on curved paths.`,
+        `<b>Race progress</b> on a curved track: t says who's ahead.`,
+        `<b>Keeping a camera or NPC</b> on a path while the player steers.`],
+  gotchas:[`If the curve loops back near itself, the coarse search can pick the wrong part. Use more samples for twisty curves.`,
+           `Search every frame from the last t instead of from scratch, to keep it fast and stop it jumping between nearby sections.`]
+});
+
+demo({
+  id:'bz-offset', title:'Offsetting a curve: roads', short:'tangent × up = sideways', sig:'right = tangent:Cross(Vector3.yAxis).Unit   ·   edge = point ± right × width/2',
+  view:{theta:0.15, phi:0.7, r:26, ty:0},
+  params:[R('width','Road width',1,6,0.25,3.5), R('bend','Bendiness',0,12,0.5,8), T('posts','Fence posts',true)],
+  setup(K){
+    const N = 80, geo = new THREE.BufferGeometry(), pos = new Float32Array((N+1)*2*3), idx = [];
+    for (let i=0;i<N;i++){ const a=i*2, b=a+1, c=a+2, d=a+3; idx.push(a,b,c, b,d,c); }
+    geo.setAttribute('position', new THREE.BufferAttribute(pos,3)); geo.setIndex(idx);
+    const road = K.add(new THREE.Mesh(geo, K.mat('--part'))); road.material.side = THREE.DoubleSide; road.frustumCulled = false;
+    const eL = K.line('--ink',{max:N+1}), eR = K.line('--ink',{max:N+1}), mid = K.line('--accent',{dashed:true, max:N+1});
+    const posts = Array.from({length:60}, ()=>{ const m = K.add(new THREE.Mesh(G.box, K.mat('--vb'))); m.scale.set(0.25,1,0.25); return m; });
+    const ra = K.arrow('--x',{thick:0.05}), ta = K.arrow('--z',{thick:0.05}), lr = K.label('right','--x'), ltn = K.label('tangent','--z');
+    return {update(p){
+      const P0 = V(-11,0.05,3), P1 = V(-4,0.05,3-p.bend), P2 = V(4,0.05,3+p.bend), P3 = V(11,0.05,-1);
+      const centre = [], left = [], right = []; let len = 0, prev = null; const cum = [];
+      for (let i=0;i<=N;i++){ const t=i/N, c = cubic(P0,P1,P2,P3,t), tan = cubicTan(P0,P1,P2,P3,t), r = tan.clone().cross(UP).normalize();
+        const L = c.clone().addScaledVector(r,-p.width/2), Rr = c.clone().addScaledVector(r,p.width/2);
+        centre.push(c); left.push(L); right.push(Rr); [L,Rr].forEach((q,k)=>{ const j=(i*2+k)*3; pos[j]=q.x; pos[j+1]=q.y; pos[j+2]=q.z; });
+        if (prev) len += c.distanceTo(prev); cum.push(len); prev = c; }
+      geo.attributes.position.needsUpdate = true; geo.computeVertexNormals();
+      eL.set(left.map(q=>q.clone().setY(0.08))); eR.set(right.map(q=>q.clone().setY(0.08))); mid.set(centre.map(q=>q.clone().setY(0.09)));
+      let used = 0;
+      if (p.posts){ for (let d=0; d<=len && used < 60; d+=3){ let i = cum.findIndex(c=>c>=d); if (i<0) i = N; [left[i], right[i]].forEach(q=>{ if (used<60){ posts[used].position.set(q.x,0.5,q.z); posts[used].visible = true; used++; } }); } }
+      for (let i=used;i<60;i++) posts[i].visible = false;
+      const k = 30, c = centre[k], tan = cubicTan(P0,P1,P2,P3,k/N).normalize(), r = tan.clone().cross(UP).normalize();
+      ra.set(c.clone().setY(0.4), r.clone().multiplyScalar(2)); ta.set(c.clone().setY(0.4), tan.clone().multiplyScalar(2));
+      lr.at(c.clone().setY(0.4).addScaledVector(r,2.4)); ltn.at(c.clone().setY(0.4).addScaledVector(tan,2.5));
+      return {len, posts:used};
+    }};
+  },
+  readout:(p,o)=>[['road length', f(o.len,1)+' studs','acc'],['fence posts', String(o.posts)]],
+  code:(p,o)=>`local SEGMENTS, WIDTH = 40, ${f(p.width)}
+
+for i = 0, SEGMENTS - 1 do
+    local t0, t1 = i / SEGMENTS, (i + 1) / SEGMENTS
+    local a = cubicBezier(p0, p1, p2, p3, t0)
+    local b = cubicBezier(p0, p1, p2, p3, t1)
+
+    local piece = Instance.new("Part")
+    piece.Anchored = true
+    piece.Size = Vector3.new(WIDTH, 0.2, (b - a).Magnitude + 0.05)
+    piece.CFrame = CFrame.lookAt((a + b) / 2, b)     -- lies along the curve
+    piece.Parent = workspace.Road
+
+    -- road edges for fences, kerbs or barriers:
+    local right = (b - a):Cross(Vector3.yAxis).Unit
+    local leftEdge, rightEdge = a - right * WIDTH / 2, a + right * WIDTH / 2
+end`,
+  body:`<p>To give a curve some width, you need a <b>sideways</b> direction at every point. Take the tangent (which way the curve is heading), cross it with world up, and you get a vector pointing to the right of the road. Step half the width each way and you have the two edges.</p>
+<p>Fill between the edges and you have a road surface. Place parts along the edges at even distances for fences, lights or barriers. Increase the bendiness and watch the inside of tight corners: that's where offset curves start to pinch.</p>`,
+  uses:[`<b>Road, river and rail builders</b> for tracks and maps.`,
+        `<b>Fences, lamp posts and kerbs</b> placed along a path.`,
+        `<b>Racing lines and lane markings.</b>`],
+  gotchas:[`On a very tight bend with a wide road, the inner edge folds over itself. Limit the width or soften the curve.`,
+           `For hills, use the curve's own up direction instead of world up, or the road tilts strangely on slopes.`]
+});
+}
 })();
