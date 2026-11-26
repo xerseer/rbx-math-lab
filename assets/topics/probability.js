@@ -1,0 +1,288 @@
+(function(){
+"use strict";
+const {THREE, V, UP, C, f, G, R, S, T, mulberry32} = Lab;
+const demo = Lab.subject({
+  id:'probability', title:'Probability', glyph:'dice',
+  blurb:'Weighted loot, drop chances over many tries, dice, bullet spread and fair random spawns.'
+});
+
+function bar(K, color, opacity=1){
+  const m = K.add(new THREE.Mesh(G.box, K.mat(color,{opacity})));
+  m.setBar = (x,z,w,h)=>{ const hh = Math.max(h, 0.001); m.scale.set(w,hh,w); m.position.set(x,hh/2,z); m.visible = h > 0.0005; return m; };
+  return m;
+}
+function wire(K, color){
+  const m = K.add(new THREE.LineSegments(G.edges, new THREE.LineBasicMaterial({color:C(color)})));
+  m.setBar = (x,z,w,h)=>{ const hh = Math.max(h, 0.001); m.scale.set(w,hh,w); m.position.set(x,hh/2,z); return m; };
+  return m;
+}
+function gaussian(rng){ const u1 = 1 - rng(), u2 = rng(); return Math.sqrt(-2*Math.log(u1)) * Math.cos(2*Math.PI*u2); }
+const pct = (x,d=1)=>f(x*100,d)+'%';
+
+demo({
+  id:'pr-weighted', title:'Weighted loot tables', short:'pick by weight', sig:'pick = rng:NextNumber(0, totalWeight), then subtract weights in order',
+  view:{theta:0.0, phi:1.2, r:24, ty:4}, env:'grid',
+  params:[S('rolls','Rolls',[['10','10'],['100','100'],['1000','1,000'],['10000','10,000']],'100'), R('leg','Legendary weight',0,20,1,4), R('seed','Seed',1,99,1,5)],
+  setup(K){
+    const base = [['Common',60,'--part'],['Uncommon',25,'--y'],['Rare',10,'--z'],['Legendary',4,'--accent'],['Mythic',1,'--vb']];
+    const bars = base.map(b=>bar(K,b[2])), wires = base.map(()=>wire(K,'--ink'));
+    const names = base.map(b=>K.label(b[0], b[2], 'big')), nums = base.map(()=>K.label('', '--ink'));
+    K.label('outline = expected   ·   solid = what you actually got','--muted').at(V(0,-0.7,2));
+    let key = '', res = null;
+    return {update(p){
+      const items = base.map(b=>({name:b[0], w: b[0]==='Legendary' ? p.leg : b[1], c:b[2]}));
+      const k = p.rolls+'|'+p.leg+'|'+p.seed;
+      if (k !== key){ key = k;
+        const total = items.reduce((s,i)=>s+i.w,0), rng = mulberry32(p.seed*977 + +p.rolls), counts = items.map(()=>0), n = +p.rolls;
+        for (let r=0;r<n;r++){ let pick = rng()*total; for (let i=0;i<items.length;i++){ pick -= items[i].w; if (pick <= 0){ counts[i]++; break; } } }
+        res = {total, counts, n};
+      }
+      items.forEach((it,i)=>{
+        const x = -8 + i*4, exp = res.total ? it.w/res.total : 0, got = res.counts[i]/res.n;
+        bars[i].setBar(x,0,2,got*14); wires[i].setBar(x,0,2.15,exp*14);
+        names[i].at(V(x, Math.max(got,exp)*14 + 1.1, 0)); nums[i].at(V(x, Math.max(got,exp)*14 + 0.5, 0)).text(`${pct(exp)} · got ${pct(got)}`);
+      });
+      const li = 3, legP = res.total ? items[li].w/res.total : 0;
+      return {items, res, legP};
+    }};
+  },
+  readout:(p,o)=>[['total weight', String(o.res.total)],['Legendary chance', pct(o.legP,2)],['about 1 in', o.legP ? f(1/o.legP,0)+' rolls' : 'never','acc'],['Legendaries got', `${o.res.counts[3]} of ${o.res.n}`]],
+  code:(p,o)=>`local LOOT = {
+${o.items.map(i=>`    { name = "${i.name}", weight = ${i.w} },`).join('\n')}
+}   -- total weight ${o.res.total}
+
+local rng = Random.new()
+
+local function roll()
+    local total = 0
+    for _, item in LOOT do
+        total += item.weight
+    end
+    local pick = rng:NextNumber(0, total)
+    for _, item in LOOT do
+        pick -= item.weight
+        if pick <= 0 then
+            return item.name
+        end
+    end
+end
+
+print(roll())   -- Legendary comes up ${pct(o.legP,2)} of the time`,
+  body:`<p>A weighted table lets you write chances as simple numbers that don't have to add up to 100. Add the weights together, pick a random number up to that total, then walk down the list subtracting each weight. The item that takes you to zero or below wins. Bigger weights take up more of the range, so they win more often.</p>
+<p>The outlines show the expected share and the solid bars show what a run of rolls actually gave. With 10 rolls the bars are all over the place; with 10,000 they hug the outlines. Raise the Legendary weight and every other chance shrinks a little, because the total grew.</p>`,
+  uses:[`<b>Loot drops, crates and gacha pulls.</b>`,
+        `<b>Enemy spawn tables</b>: more weak enemies, a few strong ones.`,
+        `<b>Weighted AI choices</b>: an NPC that usually attacks but sometimes taunts.`],
+  gotchas:[`Show players the real percentage (<code>weight / total</code>), not the raw weight. Many regions require published odds for paid random items.`,
+           `Roll on the <b>server</b>. Anything the client rolls can be faked by exploiters.`,
+           `A weight of 0 means "never", which is handy for switching items off during events.`]
+});
+
+demo({
+  id:'pr-atleast', title:'Chance over many tries', short:'1 - (1 - p)^n', sig:'chance of at least one = 1 - (1 - p) ^ n',
+  view:{theta:0.0, phi:1.25, r:24, ty:4}, env:'grid',
+  params:[R('p','Chance per try',0.5,50,0.5,5,'%'), R('n','Tries',1,40,1,20), R('pity','Pity: guaranteed by try (0 = off)',0,40,1,0)],
+  setup(K){
+    const bars = Array.from({length:40}, ()=>bar(K,'--part'));
+    const l50 = K.line('--muted',{dashed:true}), l90 = K.line('--muted',{dashed:true}), l100 = K.line('--muted',{opacity:0.4});
+    l50.set(V(-10.5,4,0), V(10.5,4,0)); l90.set(V(-10.5,7.2,0), V(10.5,7.2,0)); l100.set(V(-10.5,8,0), V(10.5,8,0));
+    K.label('50%','--muted').at(V(-11.4,4,0)); K.label('90%','--muted').at(V(-11.4,7.2,0)); K.label('100%','--muted').at(V(-11.6,8,0));
+    K.label('try 1','--muted').at(V(-10,-0.5,0)); K.label('try 40','--muted').at(V(9.5,-0.5,0));
+    const lab = K.label('','--accent','big');
+    return {update(p){
+      const q = p.p/100; let at = 0;
+      for (let n=1;n<=40;n++){
+        let P = 1 - Math.pow(1-q, n); if (p.pity && n >= p.pity) P = 1;
+        const x = -10 + (n-1)*0.513; bars[n-1].setBar(x,0,0.42,P*8);
+        bars[n-1].material.color.copy(C(n===p.n ? '--accent' : (p.pity && n>=p.pity ? '--ok' : '--part')));
+        if (n === p.n){ at = P; lab.at(V(x, P*8+0.6, 0)).text(pct(P)); }
+      }
+      const t50 = Math.ceil(Math.log(0.5)/Math.log(1-q)), t90 = Math.ceil(Math.log(0.1)/Math.log(1-q));
+      return {at, t50, t90, q};
+    }};
+  },
+  readout:(p,o)=>[[`at least one in ${p.n} tries`, pct(o.at),'acc'],['tries for 50%', String(o.t50)],['tries for 90%', String(o.t90)],['expected tries', f(1/o.q,1)]],
+  code:(p,o)=>`local function chanceAtLeastOnce(p, tries)
+    return 1 - (1 - p) ^ tries
+end
+
+print(chanceAtLeastOnce(${f(o.q,3)}, ${p.n}))   --> ${f(o.at,3)}
+
+-- how many tries until a player has a given chance?
+local function triesFor(p, target)
+    return math.ceil(math.log(1 - target) / math.log(1 - p))
+end
+print(triesFor(${f(o.q,3)}, 0.5))   --> ${o.t50}
+print(triesFor(${f(o.q,3)}, 0.9))   --> ${o.t90}
+${p.pity ? `
+-- pity: count misses and force a win on try ${p.pity}
+misses += 1
+if misses >= ${p.pity} or rng:NextNumber() < ${f(o.q,3)} then
+    misses = 0
+    giveReward()
+end` : ''}`,
+  body:`<p>A 5% drop doesn't mean you get it after 20 kills. Each try is independent, so the easy question is the opposite one: what's the chance of missing every time? Missing once is <code>1 - p</code>, missing n times in a row is <code>(1 - p)^n</code>, and one minus that is the chance of getting it at least once.</p>
+<p>Each bar is the chance of having the item by that try. At 5% per try, 20 tries only gets you to about 64%, and some players will still be empty-handed after 40. A <b>pity</b> counter caps the bad luck: set one and the bars jump to 100% at that try.</p>`,
+  uses:[`<b>Balancing drop rates</b>: pick the chance so most players get the item within the playtime you want.`,
+        `<b>Pity systems</b> for gacha, crates and rare boss drops.`,
+        `<b>Explaining odds</b> in UI: "about 1 in 20 players get this on their first run".`],
+  gotchas:[`Independent rolls have no memory. A long losing streak doesn't make the next roll more likely to win, unless you add pity on purpose.`,
+           `<code>math.log</code> of 0 is minus infinity. Guard <code>p = 0</code> and <code>p = 1</code> before dividing by logs.`]
+});
+
+demo({
+  id:'pr-dice', title:'Adding random numbers', short:'2d6 vs 1d12', sig:'sum of several rolls  →  results bunch in the middle',
+  view:{theta:0.0, phi:1.25, r:24, ty:3.5}, env:'grid',
+  params:[R('count','Dice',1,4,1,2), S('sides','Sides',[['4','4'],['6','6'],['8','8'],['12','12']],'6'), T('cmp','Compare with one big die',true)],
+  setup(K){
+    const MAX = 48; const bars = Array.from({length:MAX}, ()=>bar(K,'--accent')), ghosts = Array.from({length:MAX}, ()=>wire(K,'--muted'));
+    const lMin = K.label('','--muted'), lMax = K.label('','--muted'), lPk = K.label('','--accent','big');
+    return {update(p){
+      const s = +p.sides, n = p.count; let dist = [1];
+      for (let d=0; d<n; d++){ const nd = new Array(dist.length + s).fill(0); dist.forEach((v,i)=>{ for (let k=1;k<=s;k++) nd[i+k] += v/s; }); dist = nd; }
+      const top = n*s, uni = 1/top; let peakP = 0, peak = n;
+      for (let v=n; v<=top; v++) if (dist[v] > peakP + 1e-12){ peakP = dist[v]; peak = v; }
+      const scale = 7/Math.max(peakP, p.cmp ? uni : 0), w = Math.min(0.9, 20/top);
+      for (let v=1; v<=MAX; v++){
+        const x = -10 + (v-1)/(Math.max(top-1,1))*20, i = v-1, inRange = v<=top;
+        bars[i].setBar(x,0,w*0.8, inRange ? (dist[v]||0)*scale : 0);
+        ghosts[i].visible = p.cmp && inRange; if (ghosts[i].visible) ghosts[i].setBar(x,0,w*0.85, uni*scale);
+      }
+      const xOf = v=>-10 + (v-1)/(Math.max(top-1,1))*20;
+      lMin.at(V(xOf(n),-0.5,0)).text(String(n)); lMax.at(V(xOf(top),-0.5,0)).text(String(top)); lPk.at(V(xOf(peak), peakP*scale+0.6, 0)).text(`${peak}: ${pct(peakP)}`);
+      return {peak, peakP, maxP:dist[top], uni, top};
+    }};
+  },
+  readout:(p,o)=>[['most likely total', `${o.peak} (${pct(o.peakP)})`,'acc'],['chance of max roll', pct(o.maxP,2)],['one big die: each total', pct(o.uni)]],
+  code:(p,o)=>`local rng = Random.new()
+
+local function roll(count, sides)
+    local total = 0
+    for i = 1, count do
+        total += rng:NextInteger(1, sides)
+    end
+    return total
+end
+
+local damage = roll(${p.count}, ${p.sides})          -- ${p.count} to ${o.top}, usually around ${o.peak}
+local wild   = rng:NextInteger(1, ${o.top})   -- 1 to ${o.top}, every value equally likely`,
+  body:`<p>One die is flat: every face is equally likely. Add two together and the middle totals become more common, because there are more ways to make 7 than to make 2 or 12. With three or four dice the bars form a bell shape.</p>
+<p>Turn on the comparison to see one big die with the same top value as a flat outline. Both can roll high, but the summed dice almost never do. Game designers use this to make damage feel consistent: <b>2d6</b> rarely surprises you, <b>1d12</b> often does.</p>`,
+  uses:[`<b>Damage ranges</b> that feel steady: sum 2 or 3 smaller rolls.`,
+        `<b>Rare extremes</b>: a max roll on 4d6 is a real event (0.08%), perfect for a crit.`,
+        `<b>Natural-looking variation</b> in stats like NPC height or speed.`],
+  gotchas:[`<code>NextInteger(1, 6)</code> includes both 1 and 6. <code>math.random(1, 6)</code> does too.`,
+           `Summing rolls changes the shape, not the average: 2d6 and a 2–12 roll both average 7, but the 2–12 roll lands on 2 or 12 far more often.`]
+});
+
+demo({
+  id:'pr-spread', title:'Bullet spread: flat vs bell', short:'Box–Muller gaussian', sig:'math.sqrt(-2 * math.log(u1)) * math.cos(2 * math.pi * u2)',
+  view:{theta:0.35, phi:1.25, r:22, tz:-2, ty:3},
+  params:[S('mode','Spread type',[['gauss','Bell curve (gaussian)'],['uniform','Flat (even in circle)']],'gauss'), R('shots','Shots',10,300,10,150), R('spread','Spread size',1,4,0.25,2.5,' studs'), R('seed','Seed',1,99,1,4)],
+  setup(K){
+    const BZ = -8, BC = V(0,3,BZ);
+    const board = K.part(V(9,8,0.2),'--panel',{front:false}); board.position.set(0,3,BZ-0.12);
+    const shooter = K.part(V(1.2,2,1)); shooter.position.set(0,1,8);
+    K.line('--muted',{dashed:true}).set(V(0,1.6,7.5), BC);
+    let rings = [], rkey = -1;
+    const mesh = K.add(new THREE.InstancedMesh(G.sphere, K.mat('--accent'), 300)); const dm = new THREE.Matrix4(), q = new THREE.Quaternion();
+    let key = '', res = null;
+    return {update(p){
+      if (rkey !== p.spread){ rkey = p.spread; rings.forEach(r=>K.drop(r)); rings = [p.spread, p.spread/3].map((rad,i)=>{ const r = K.ring(rad, i?'--vb':'--ink',{y:0, dashed:i===1}); r.rotation.x = Math.PI/2; r.position.set(0,3,BZ+0.02); return r; }); }
+      const k = [p.mode,p.shots,p.spread,p.seed].join('|');
+      if (k !== key){ key = k; const rng = mulberry32(p.seed*7121); let inner = 0, outside = 0;
+        for (let i=0;i<p.shots;i++){
+          let x, y;
+          if (p.mode==='gauss'){ const sg = p.spread/2.5; x = gaussian(rng)*sg; y = gaussian(rng)*sg; }
+          else { const a = rng()*Math.PI*2, r = p.spread*Math.sqrt(rng()); x = Math.cos(a)*r; y = Math.sin(a)*r; }
+          const d = Math.hypot(x,y); if (d < p.spread/3) inner++; if (d > p.spread) outside++;
+          dm.compose(V(x,3+y,BZ+0.08), q, V(0.09,0.09,0.09)); mesh.setMatrixAt(i, dm);
+        }
+        mesh.count = p.shots; mesh.instanceMatrix.needsUpdate = true; res = {inner:inner/p.shots, outside};
+      }
+      return res;
+    }};
+  },
+  readout:(p,o)=>[['inside the small ring', pct(o.inner,0),'acc'],['outside the big ring', String(o.outside)+' shots', o.outside?'bad':'']],
+  code:(p,o)=>p.mode==='gauss' ? `local rng = Random.new()
+
+local function gaussian()   -- bell curve: mostly near 0, rarely far out
+    local u1, u2 = 1 - rng:NextNumber(), rng:NextNumber()
+    return math.sqrt(-2 * math.log(u1)) * math.cos(2 * math.pi * u2)
+end
+
+local SPREAD = math.rad(${f(p.spread*0.6,2)})   -- typical miss angle
+local aim = CFrame.lookAt(muzzle.Position, mouseHit)
+local shot = aim * CFrame.Angles(gaussian() * SPREAD, gaussian() * SPREAD, 0)
+local direction = shot.LookVector` : `local rng = Random.new()
+
+local MAX_SPREAD = math.rad(${f(p.spread*1.5,2)})
+local angle = rng:NextNumber(0, 2 * math.pi)
+local amount = MAX_SPREAD * math.sqrt(rng:NextNumber())   -- sqrt = even over the circle
+
+local aim = CFrame.lookAt(muzzle.Position, mouseHit)
+local shot = aim * CFrame.Angles(0, 0, angle) * CFrame.Angles(amount, 0, 0)
+local direction = shot.LookVector`,
+  body:`<p>A <b>flat</b> spread puts shots anywhere inside a circle with equal chance, which feels random and unfair: as many shots land near the edge as in the centre. A <b>bell-curve</b> (gaussian) spread clusters most shots near the crosshair with a few strays, which is how real recoil and aim wobble feel.</p>
+<p>The Box–Muller formula turns two ordinary random numbers into a bell-curve number. Compare the share of shots inside the small ring for each mode. A gaussian has no hard edge, so now and then a shot lands outside the big ring.</p>`,
+  uses:[`<b>Gun spread and recoil</b> that rewards aiming at the centre.`,
+        `<b>Natural variation</b>: NPC reaction times, tree sizes, enemy stats around an average.`,
+        `<b>Particles and debris</b> that bunch around an impact point.`],
+  gotchas:[`<code>math.log(0)</code> is minus infinity. Using <code>1 - rng:NextNumber()</code> keeps u1 above zero.`,
+           `A gaussian can return very large values (rarely). Clamp it if a shot must never leave a cone.`]
+});
+
+demo({
+  id:'m-random', title:'Random spawn points', short:'Random.new(seed)', sig:'Random.new(seed):NextNumber(min, max)  →  number',
+  view:{theta:0.2, phi:0.45, r:26, ty:0},
+  params:[R('count','Count',5,200,5,120), R('radius','Area radius',2,10,0.5,8), R('seed','Seed',1,99,1,7), S('shape','Method',[['sqrt','Circle with math.sqrt (even)'],['naive','Circle, plain random radius'],['square','Square (x and z)']],'sqrt')],
+  setup(K){
+    const mesh = K.add(new THREE.InstancedMesh(G.box, K.mat('--accent'), 200));
+    const dm = new THREE.Matrix4();
+    let outline = null, inner = null, okey='', key='', res = null;
+    return {update(p){
+      const k = p.radius+'|'+p.shape;
+      if (k !== okey){ okey = k; K.drop(outline); K.drop(inner); inner = null;
+        if (p.shape==='square'){ const r=p.radius; outline = K.line('--muted',{max:5}); outline.set(V(-r,0.03,-r),V(r,0.03,-r),V(r,0.03,r),V(-r,0.03,r),V(-r,0.03,-r)); }
+        else { outline = K.ring(p.radius,'--muted',{y:0.03}); inner = K.ring(p.radius/2,'--vb',{y:0.03, dashed:true}); }
+      }
+      const k2 = [p.count,p.radius,p.seed,p.shape].join('|');
+      if (k2 !== key){ key = k2; const rng = mulberry32(p.seed*7919); let inside = 0;
+        for (let i=0;i<p.count;i++){
+          let x, z;
+          if (p.shape==='square'){ x = (rng()*2-1)*p.radius; z = (rng()*2-1)*p.radius; }
+          else { const a = rng()*Math.PI*2, u = rng(), r = p.radius*(p.shape==='sqrt'?Math.sqrt(u):u); x = Math.cos(a)*r; z = Math.sin(a)*r; if (r < p.radius/2) inside++; }
+          dm.compose(V(x,0.2,z), new THREE.Quaternion().setFromAxisAngle(UP, rng()*6), V(0.4,0.4,0.4)); mesh.setMatrixAt(i, dm);
+        }
+        mesh.count = p.count; mesh.instanceMatrix.needsUpdate = true; res = {inside, frac: p.count ? inside/p.count : 0};
+      }
+      return res;
+    }};
+  },
+  readout:(p,o)=> p.shape==='square' ? [['points', String(p.count)],['seed', String(p.seed)]] :
+    [['inside dashed ring', f(o.frac*100,0)+'%', p.shape==='sqrt'?'ok':'bad'],['even spread would be', '25%']],
+  code:(p,o)=> p.shape==='square' ? `local rng = Random.new(${p.seed})      -- same seed → same layout every time
+local SIZE = ${f(p.radius)}
+
+for i = 1, ${p.count} do
+    local x = rng:NextNumber(-SIZE, SIZE)
+    local z = rng:NextNumber(-SIZE, SIZE)
+    spawnCoin(center + Vector3.new(x, 0, z))
+end` : `local rng = Random.new(${p.seed})      -- same seed → same layout every time
+local RADIUS = ${f(p.radius)}
+
+for i = 1, ${p.count} do
+    local angle = rng:NextNumber(0, 2 * math.pi)
+    local r = RADIUS * ${p.shape==='sqrt' ? 'math.sqrt(rng:NextNumber())   -- sqrt spreads them evenly' : 'rng:NextNumber()   -- bunches up in the middle!'}
+    spawnCoin(center + Vector3.new(math.cos(angle) * r, 0, math.sin(angle) * r))
+end`,
+  body:`<p><code>math.random()</code> gives a number from 0 to 1, and <code>math.random(1, 6)</code> a whole number from 1 to 6. <code>Random.new(seed)</code> is a generator object: give it the same seed and it repeats the same sequence, which is handy for testing or for maps every player should see the same way.</p>
+<p>Scattering points in a circle has a classic trap. Switch to <i>plain random radius</i>: points crowd the middle, with about half inside the dashed ring that covers only a quarter of the area. Taking <code>math.sqrt</code> of the random number fixes it, and the share inside drops to about 25%.</p>`,
+  uses:[`<b>Loot and coin spawns</b> scattered around an area.`,
+        `<b>Random NPC wander targets</b> within a radius of their home.`,
+        `<b>Procedural maps</b> that need to be the same each time: store the seed instead of the whole map.`],
+  gotchas:[`<code>math.random(1, 10)</code> returns whole numbers only. For decimals, use <code>rng:NextNumber(min, max)</code>.`,
+           `Picking from a list: <code>list[math.random(1, #list)]</code>.`,
+           `For a uniform direction in 3D, <code>rng:NextUnitVector()</code> does it for you.`]
+});
+})();
