@@ -4,7 +4,7 @@ const {THREE, V, UP, D2R, C, f, CF, G, R, S, T, clamp} = Lab;
 const {inst, labels, cellPos, rng} = Lab.kit2;
 const demo = Lab.subject({
   id:'grid', title:'Grids & tiles', glyph:'grid',
-  blurb:'Grid coordinates, neighbours, distances, 1D storage, flood fill, line drawing, rotating pieces, hex grids and chunks.'
+  blurb:'Grid coordinates, neighbours, flood fill, hex grids and chunks, then 3D grids and voxels: block picking, hidden faces, greedy meshing, layers, snapping and autotiling.'
 });
 const W = 12, H = 10, SZ = 1.6;
 function gridLines(K, W, H, size, color='--grid'){ const pts = []; const x0 = -W*size/2, z0 = -H*size/2;

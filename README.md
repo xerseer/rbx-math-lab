@@ -23,7 +23,7 @@ with sliders, live Luau code, real game uses and common mistakes.
 | Trigonometry | Unit circle, radians, SOH CAH TOA, slopes, sine waves, polar spirals, Lissajous paths, 2D rotation, heights from angles |
 | Animation & timing | Durations, ping-pong loops, TweenInfo, sequences, staggering, keyframes, squash and stretch, idle motion, counters |
 | Colors | RGB, Color3:Lerp, HSV, rainbows, gradients, readable text, hex, flashes, distinct team colours |
-| Grids & tiles | Grid coordinates, neighbours, distances, 1D storage, flood fill, Bresenham lines, rotating pieces, hex grids, chunks |
+| Grids & tiles | Grid coordinates, neighbours, distances, 1D storage, flood fill, Bresenham lines, rotating pieces, hex grids, chunks, 3D voxel coordinates and storage, 6/18/26 neighbours, hidden faces, voxel ray stepping (DDA), greedy meshing, terrain layers, build-grid snapping, autotiling, sparse voxel keys |
 | UI & screen maths | UDim2, AnchorPoint, aspect ratios, world-to-screen, off-screen arrows, health bars, radial cooldowns, layouts, dragging |
 | Numbers & formatting | Rounding, 1.2K abbreviations, timers, percentages, floating point, huge numbers, commas, stacks, averages |
 | Camera maths | Orbit cameras from yaw and pitch, field of view and zoom, keeping the camera out of walls |
@@ -32,7 +32,7 @@ with sliders, live Luau code, real game uses and common mistakes.
 | Geometry & intersections (advanced) | Ray vs sphere, ray vs plane, point in polygon, segment crossings |
 | Kinematics & IK (advanced) | Law of cosines, two-bone IK, FABRIK chains |
 | Physics simulation (advanced) | Euler vs Verlet integrators, bounces with friction, collisions and momentum, Verlet ropes |
-| Procedural generation (advanced) | fBm, ridges and terraces, domain warping, Voronoi, Poisson discs, cave automata, random walks, islands, L-systems |
+| Procedural generation (advanced) | fBm, ridges and terraces, domain warping, Voronoi, Poisson discs, cave automata, random walks, islands, L-systems, 3D noise, density overhangs and floating islands, spaghetti and cheese caves, Perlin worms, ores by depth, biomes, thermal erosion, marching squares, wave function collapse, BSP dungeons |
 | Graphs & pathfinding (advanced) | BFS, Dijkstra, A*, heuristics, flow fields, path smoothing, waypoint graphs, following paths |
 | Matrices & transforms (advanced) | CFrame matrices, matrix × vector, forward kinematics, inverses, drift, basis changes, scaling, mirroring |
 | Calculus for games (advanced) | Derivatives, velocity from samples, integrals, Newton, bisection, gradient descent, arc length, smooth joins |

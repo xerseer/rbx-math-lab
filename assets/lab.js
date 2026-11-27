@@ -94,6 +94,8 @@ function subject(s){
   const S = {...s, demos:[]}; subjects.push(S);
   return d=>{ d.subject = S.id; S.demos.push(d); demos.push(d); };
 }
+/* more demos for a subject made in another file */
+function more(id){ const S = subjects.find(s=>s.id === id); return d=>{ d.subject = S.id; S.demos.push(d); demos.push(d); }; }
 const R = (id,label,min,max,step,value,unit='')=>({type:'range',id,label,min,max,step,value,unit});
 const Sel = (id,label,options,value)=>({type:'select',id,label,options,value});
 const T = (id,label,value)=>({type:'toggle',id,label,value});
@@ -329,7 +331,7 @@ function init(viewport, canvas, labelLayer){
 
 window.Lab = {
   THREE, V, UP, D2R, cssVar, C, f, v3, vs, lookOf, clamp, esc, CF, mulberry32, noise, hl, G, disposeTree,
-  subjects, demos, subject, R, S:Sel, T,
+  subjects, demos, subject, more, R, S:Sel, T,
   engine:{ init, load, unload, resize, resetView, get state(){ return E; },
     setPlaying(b){ E.playing = b; }, get playing(){ return E.playing; } }
 };

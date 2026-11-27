@@ -4,7 +4,7 @@ const {THREE, V, UP, D2R, C, f, CF, G, R, S, T, clamp, noise, mulberry32} = Lab;
 const {inst, labels, rng} = Lab.kit2;
 const demo = Lab.subject({
   id:'proc', title:'Procedural generation', glyph:'mountain', level:'Advanced',
-  blurb:'Layered noise, ridges and terraces, domain warping, Voronoi cells, Poisson discs, cave automata, random walks, islands and L-system trees.'
+  blurb:'Layered noise, warping, Voronoi, Poisson discs and caves, then 3D noise: overhangs, spaghetti caves, worms, ores, biomes, erosion, marching squares, WFC and BSP dungeons.'
 });
 const N = 34, CELL = 0.7;
 const PAL = [[0,'#2f6fd6'],[0.32,'#4c8fe0'],[0.36,'#e4d19a'],[0.42,'#5fae4f'],[0.66,'#3f7f3a'],[0.78,'#8a8a8a'],[0.9,'#f2f2f2']].map(([t,h])=>[t,new THREE.Color(h)]);
