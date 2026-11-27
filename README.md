@@ -3,6 +3,11 @@
 Interactive 3D lessons on the maths Roblox developers use every day. Each topic has a 3D preview
 with sliders, live Luau code, real game uses and common mistakes.
 
+## Sister sites
+| Lab | Site |
+| --- | --- |
+| **LuaU** | **https://xerseer.github.io/rbx-luau-lab/** |
+
 ## Subjects
 
 | Subject | Topics |
