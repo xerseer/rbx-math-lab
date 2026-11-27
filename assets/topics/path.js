@@ -289,9 +289,14 @@ demo({
     return {update(p,t){
       rings.forEach(r=>r.scale.set(p.radius,1,p.radius));
       const pos = way[0].clone(), hist = [pos.clone()]; let i = 1; const h = 1/30, steps = Math.floor((t % 16)/h);
-      for (let s=0; s<steps && i < way.length; s++){ let target = way[i]; if (p.look && i+1 < way.length){ const d = pos.distanceTo(way[i]); if (d < p.radius*2) target = way[i].clone().lerp(way[i+1], clamp(1 - d/(p.radius*2),0,1)*0.5); }
+      // look ahead = chase a "carrot" a fixed distance further along the path than the NPC is, so it can't stall short of a waypoint
+      const ahead = Math.max(1.5, p.radius*2), along = (a, b, q)=>{ const ab = b.clone().sub(a), L2 = ab.lengthSq(); return L2 > 0 ? q.clone().sub(a).dot(ab)/L2 : 1; };
+      for (let s=0; s<steps && i < way.length; s++){ const A = way[i-1], B = way[i], C = way[i+1]; let target = B, left = Infinity;
+        if (p.look && C){ const segL = A.distanceTo(B), tA = clamp(along(A, B, pos), 0, 1); left = (1 - tA)*segL;
+          target = left > ahead ? A.clone().lerp(B, tA + ahead/segL) : B.clone().lerp(C, Math.min(1, (ahead - left)/B.distanceTo(C))); }
         const dir = target.clone().sub(pos); dir.y = 0; const L = dir.length(); if (L > 1e-6) pos.addScaledVector(dir, Math.min(1, p.speed*h/L));
-        if (pos.distanceTo(way[i]) <= p.radius) i++; if (s % 3 === 0) hist.push(pos.clone()); }
+        // move on when close enough, or (looking ahead) once we've started along the next leg
+        if (pos.distanceTo(B) <= p.radius || (left <= ahead && along(B, C, pos) > 1e-3)) i++; if (s % 3 === 0) hist.push(pos.clone()); }
       trail.set(hist.slice(-400).map(q=>q.clone().setY(0.15))); const nxt = way[Math.min(i, way.length-1)]; npc.setCF(CF.lookAt(pos.clone().setY(0.8), nxt.clone().setY(0.8).add(V(1e-4,0,0))));
       lab.at(pos.clone().setY(2)).text(i < way.length ? `→ waypoint ${i+1}` : 'arrived');
       return {i};
